@@ -1,0 +1,413 @@
+{
+    "name": "Visual Accounting Agent",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "line",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                -200,
+                -180
+            ],
+            "id": "webhook-node",
+            "name": "Webhook",
+            "webhookId": "9d705361-0eed-4504-b08c-2f9846b1f92a"
+        },
+        {
+            "parameters": {
+                "dataType": "string",
+                "value1": "={{ $json.body.events[0].message.type }}",
+                "rules": {
+                    "rules": [
+                        {
+                            "value2": "image"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3,
+            "position": [
+                20,
+                -180
+            ],
+            "id": "switch-node",
+            "name": "Check Message Type"
+        },
+        {
+            "parameters": {
+                "method": "GET",
+                "url": "=https://api-data.line.me/v2/bot/message/{{ $('Webhook').item.json.body.events[0].message.id }}/content",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer REPLACE_WITH_YOUR_CHANNEL_ACCESS_TOKEN"
+                        }
+                    ]
+                },
+                "responseFormat": "file",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                240,
+                -340
+            ],
+            "id": "get-image-node",
+            "name": "Get Image Content"
+        },
+        {
+            "parameters": {
+                "modelName": "models/gemini-1.5-flash",
+                "prompt": "這是一張收據或發票的圖片。請辨識其中的「日期」、「品项」和「总金额」。\n\n请直接输出一句像这样的指令给我：「帮我记帐：[日期] [品项] [金额] 元」。\n\n如果这看起来不像是收据，请回覆：「我看到图片了，但这看起来不像收据，无法记帐。」",
+                "binaryData": true,
+                "binaryPropertyName": "data"
+            },
+            "type": "n8n-nodes-base.googleGemini",
+            "typeVersion": 1,
+            "position": [
+                460,
+                -340
+            ],
+            "id": "gemini-vision-node",
+            "name": "Gemini Vision",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "2oNyS1XNy9eO7qPH",
+                    "name": "Google Gemini(PaLM) Api account 2"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "mode": "raw",
+                "jsonOutput": "={\n\"replyToken\": \"{{ $('Webhook').item.json.body.events[0].replyToken }}\",\n\"sessionId\":\"f5d2134c5ba24125986807e7f2f4cf48\",\n\"action\": \"sendMessage\",\n\"chatInput\": \"{{ $json.text }}\"\n}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                680,
+                -340
+            ],
+            "id": "edit-fields-image",
+            "name": "Format Image Command"
+        },
+        {
+            "parameters": {
+                "mode": "raw",
+                "jsonOutput": "={\n\"replyToken\": \"{{ $json.body.events[0].replyToken }}\",\n\"sessionId\":\"f5d2134c5ba24125986807e7f2f4cf48\",\n\"action\": \"sendMessage\",\n\"chatInput\": \"{{ $json.body.events[0].message.text }}\"\n}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                460,
+                -60
+            ],
+            "id": "edit-fields-text",
+            "name": "Format Text Command"
+        },
+        {
+            "parameters": {
+                "options": {
+                    "includeInputFields": true
+                }
+            },
+            "type": "n8n-nodes-base.dateTime",
+            "typeVersion": 2,
+            "position": [
+                900,
+                -180
+            ],
+            "id": "date-time-node",
+            "name": "Date & Time"
+        },
+        {
+            "parameters": {
+                "options": {
+                    "systemMessage": "=你是一個正妹個人行動助理表達時要是活潑親切的，你的職責是協助使用者處理日常事務，你可以使用以下工具完成任務：\n可用工具\naccounting tool :用於記錄使用者的收支．當使用者要求記帳時，必須調用此工具，使用者需腰提供花費的描述和金額，日期會自動記錄為實時日期[YYYY/MM/DD]．現在的時間是：{{ $json.currentDate }}\nAccounting tool輸入範例：\n輸入日期：2026/1/19\n花費描述：買酒\n金額：200\nItinerary Planner：當我請你安排行程時請調用此工具，根據我輸入的時間安排相對應的時間行程．目前使用的時區為台灣台北，當前的時間為：{{ $json.currentDate }}"
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                1100,
+                -180
+            ],
+            "id": "ai-agent-node",
+            "name": "AI Agent"
+        },
+        {
+            "parameters": {
+                "modelName": "models/gemini-1.5-flash",
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                1060,
+                40
+            ],
+            "id": "gemini-chat-model",
+            "name": "Google Gemini Chat Model",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "2oNyS1XNy9eO7qPH",
+                    "name": "Google Gemini(PaLM) Api account 2"
+                }
+            }
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+            "typeVersion": 1.3,
+            "position": [
+                1200,
+                40
+            ],
+            "id": "memory-node",
+            "name": "Simple Memory"
+        },
+        {
+            "parameters": {
+                "descriptionType": "manual",
+                "toolDescription": "每日記賬工具",
+                "operation": "append",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww",
+                    "mode": "list",
+                    "cachedResultName": "n8n_accounting",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww/edit?usp=drivesdk"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "2026",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww/edit#gid=0"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('date', ``, 'string') }}",
+                        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('text', ``, 'string') }}",
+                        "amount": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('amount', ``, 'string') }}"
+                    },
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "date",
+                            "displayName": "date",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "text",
+                            "displayName": "text",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "amount",
+                            "displayName": "amount",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.googleSheetsTool",
+            "typeVersion": 4.7,
+            "position": [
+                1340,
+                40
+            ],
+            "id": "sheets-tool",
+            "name": "Accounting tool",
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "MNr7Hns0arjkklic",
+                    "name": "Google Sheets account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.line.me/v2/bot/message/reply",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"replyToken\": \"{{$('Webhook').item.json.body.events[0].replyToken}}\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"{{ $json.output.replaceAll('\\n','') }}\"\n    }\n  ]\n}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                1360,
+                -180
+            ],
+            "id": "http-reply-node",
+            "name": "HTTP Request",
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "S0Qrun6iqqnv9YJM",
+                    "name": "Header Auth account 2"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Check Message Type",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check Message Type": {
+            "main": [
+                [
+                    {
+                        "node": "Get Image Content",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Format Text Command",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Image Content": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini Vision",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini Vision": {
+            "main": [
+                [
+                    {
+                        "node": "Format Image Command",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format Image Command": {
+            "main": [
+                [
+                    {
+                        "node": "Date & Time",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format Text Command": {
+            "main": [
+                [
+                    {
+                        "node": "Date & Time",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Date & Time": {
+            "main": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Agent": {
+            "main": [
+                [
+                    {
+                        "node": "HTTP Request",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Simple Memory": {
+            "ai_memory": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_memory",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Accounting tool": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": true
+}

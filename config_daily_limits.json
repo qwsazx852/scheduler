@@ -1,0 +1,4 @@
+{
+    "max_staff_per_day": 8,
+    "enforce_limit": true
+}

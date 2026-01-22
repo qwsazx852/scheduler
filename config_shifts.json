@@ -1,0 +1,52 @@
+{
+    "A1": {
+        "time": "07:00-14:00",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "B": {
+        "time": "11:50-17:05",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "C": {
+        "time": "16:50-21:35",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "D": {
+        "time": "06:20-12:05",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "E": {
+        "time": "16:50-21:00",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "F": {
+        "time": "10:00-17:00",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "B-": {
+        "time": "11:50-18:00",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "B1": {
+        "time": "18:00-21:00",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "D1": {
+        "time": "10:00-17:00",
+        "required_people": 2,
+        "enforce_headcount": false
+    },
+    "B2": {
+        "time": "14:00-21:30",
+        "required_people": 2,
+        "enforce_headcount": false
+    }
+}

@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+requests
+xmltodict
+beautifulsoup4
+lxml
+pytrends
+pandas

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+.DS_Store
+*.csv
+*.xlsx
+scheduler_logic_backup.py
+scheduler_logic_new.py

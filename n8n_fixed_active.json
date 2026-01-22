@@ -1,0 +1,399 @@
+{
+    "name": "My workflow 2 (Fixed & Active)",
+    "nodes": [
+        {
+            "parameters": {
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+            "typeVersion": 1.4,
+            "position": [
+                64,
+                32
+            ],
+            "id": "61982ca0-3054-4383-b03b-e6cc79e3e964",
+            "name": "When chat message received",
+            "webhookId": "6baf4c69-b893-49f5-9a79-f71d4942b97d"
+        },
+        {
+            "parameters": {
+                "modelName": "models/gemini-3-flash-preview",
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                368,
+                240
+            ],
+            "id": "4fe321b1-9d8c-434d-990b-1e8fda3c3a5e",
+            "name": "Google Gemini Chat Model",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "2oNyS1XNy9eO7qPH",
+                    "name": "Google Gemini(PaLM) Api account 2"
+                }
+            }
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+            "typeVersion": 1.3,
+            "position": [
+                512,
+                240
+            ],
+            "id": "8cebb008-734f-40eb-ae7c-e974843829a5",
+            "name": "Simple Memory"
+        },
+        {
+            "parameters": {
+                "options": {
+                    "systemMessage": "=你是一個正妹個人行動助理表達時要是活潑親切的，你的職責是協助使用者處理日常事務，你可以使用以下工具完成任務：\n可用工具\naccounting tool :用於記錄使用者的收支．當使用者要求記帳時，必須調用此工具，使用者需腰提供花費的描述和金額，日期會自動記錄為實時日期[YYYY/MM/DD]．現在的時間是：{{ $json.currentDate }}\nAccounting tool輸入範例：\n輸入日期：2026/1/19\n花費描述：買酒\n金額：200\nItinerary Planner：當我請你安排行程時請調用此工具，根據我輸入的時間安排相對應的時間行程．目前使用的時區為台灣台北，當前的時間為：{{ $json.currentDate }}"
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                496,
+                32
+            ],
+            "id": "b5f6fabb-cb8b-4407-a2dc-a7659d7a5077",
+            "name": "AI Agent"
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.toolWikipedia",
+            "typeVersion": 1,
+            "position": [
+                736,
+                240
+            ],
+            "id": "08fafd35-4794-435f-90eb-fe5be4ce6f84",
+            "name": "Wikipedia"
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+            "typeVersion": 1,
+            "position": [
+                864,
+                240
+            ],
+            "id": "072d77ae-f5e7-4bdb-9027-201460979e81",
+            "name": "Calculator"
+        },
+        {
+            "parameters": {
+                "descriptionType": "manual",
+                "toolDescription": "每日記賬工具",
+                "operation": "append",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww",
+                    "mode": "list",
+                    "cachedResultName": "n8n_accounting",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww/edit?usp=drivesdk"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "2026",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww/edit#gid=0"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('date', ``, 'string') }}",
+                        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('text', ``, 'string') }}",
+                        "amount": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('amount', ``, 'string') }}"
+                    },
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "date",
+                            "displayName": "date",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "text",
+                            "displayName": "text",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "amount",
+                            "displayName": "amount",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.googleSheetsTool",
+            "typeVersion": 4.7,
+            "position": [
+                1008,
+                240
+            ],
+            "id": "0c1b7754-4f7f-442b-8cec-65ed2d45c5dc",
+            "name": "Accounting tool",
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "MNr7Hns0arjkklic",
+                    "name": "Google Sheets account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "options": {
+                    "includeInputFields": true
+                }
+            },
+            "type": "n8n-nodes-base.dateTime",
+            "typeVersion": 2,
+            "position": [
+                320,
+                32
+            ],
+            "id": "bcff9cd4-03e4-4d7c-97e6-fc1a3088df08",
+            "name": "Date & Time"
+        },
+        {
+            "parameters": {
+                "calendar": {
+                    "__rl": true,
+                    "value": "1faab971041d191f8565404089ff7dce0c7a644eeccd2ceff6d4d0c07c112629@group.calendar.google.com",
+                    "mode": "list",
+                    "cachedResultName": "n8n -test"
+                },
+                "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', ``, 'string') }}",
+                "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', ``, 'string') }}",
+                "additionalFields": {
+                    "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', ``, 'string') }}"
+                }
+            },
+            "type": "n8n-nodes-base.googleCalendarTool",
+            "typeVersion": 1.3,
+            "position": [
+                1184,
+                240
+            ],
+            "id": "82258aef-c46a-4532-a480-8e48ca5bc546",
+            "name": "Itinerary Planner",
+            "credentials": {
+                "googleCalendarOAuth2Api": {
+                    "id": "f5pDp7fz6nKZpBUm",
+                    "name": "Google Calendar account 2"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "line",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                64,
+                -176
+            ],
+            "id": "51150163-f564-4f63-b5b0-a84bc03a4872",
+            "name": "Webhook",
+            "webhookId": "9d705361-0eed-4504-b08c-2f9846b1f92a"
+        },
+        {
+            "parameters": {
+                "mode": "raw",
+                "jsonOutput": "={\n\"replyToken\": \"{{ $json.body.events[0].replyToken }}\",\n\"sessionId\":\"f5d2134c5ba24125986807e7f2f4cf48\",\n\"action\": \"sendMessage\",\n\"chatInput\": \"{{ $json.body.events[0].message.text }}\"\n}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4,
+            "position": [
+                272,
+                -176
+            ],
+            "id": "5f44a2fc-a469-4840-b0e6-a68389cf79a0",
+            "name": "Edit Fields"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.line.me/v2/bot/message/reply",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"replyToken\": \"{{$('Edit Fields').first().json.replyToken}}\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"{{ $json.output.replaceAll('\\n','') }}\"\n    }\n  ]\n}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.3,
+            "position": [
+                848,
+                32
+            ],
+            "id": "361bf39f-c744-4adb-a302-84965872cf79",
+            "name": "HTTP Request",
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "S0Qrun6iqqnv9YJM",
+                    "name": "Header Auth account 2"
+                }
+            }
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "When chat message received": {
+            "main": [
+                [
+                    {
+                        "node": "Date & Time",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Simple Memory": {
+            "ai_memory": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_memory",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Agent": {
+            "main": [
+                [
+                    {
+                        "node": "HTTP Request",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Wikipedia": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Calculator": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Accounting tool": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Date & Time": {
+            "main": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Itinerary Planner": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Edit Fields",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Edit Fields": {
+            "main": [
+                [
+                    {
+                        "node": "Date & Time",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": true,
+    "settings": {
+        "executionOrder": "v1",
+        "availableInMCP": false
+    },
+    "versionId": "new-version-id-123456",
+    "meta": {
+        "instanceId": "eee95304eb32873ce2d77c93a9bb91c285ba1f47f0423821515a048317002ebc"
+    },
+    "id": "hhojPaJ6ZmWt9rxPVrT72",
+    "tags": []
+}

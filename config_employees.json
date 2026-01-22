@@ -1,0 +1,372 @@
+[
+    {
+        "name": "吳誼婷",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "B",
+            "A1",
+            "D",
+            "C",
+            "E",
+            "F",
+            "B-",
+            "D1",
+            "B1",
+            "B2"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "楊依如",
+        "available_weekdays": [
+            5,
+            6,
+            0,
+            1,
+            2,
+            3,
+            4
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "D1",
+            "B1",
+            "B2"
+        ],
+        "roles": [
+            "组长"
+        ]
+    },
+    {
+        "name": "陳彥銘",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "D1",
+            "B1",
+            "B2"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "黃素珠",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "D1",
+            "B1",
+            "B2"
+        ],
+        "roles": [
+            "组长"
+        ]
+    },
+    {
+        "name": "林群皓",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B2"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "陳怡芯",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B2"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "李巧如",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B2"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "鄭靜慧",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B1",
+            "D1",
+            "B2"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "陳昱勳",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B1",
+            "D1",
+            "B2"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "林宏諺",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B1",
+            "D1"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "賴桂蘭",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B1",
+            "D1",
+            "B2"
+        ],
+        "roles": [
+            "组长"
+        ]
+    },
+    {
+        "name": "陳美娜",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B1",
+            "D1",
+            "B2"
+        ],
+        "roles": [
+            "组长"
+        ]
+    },
+    {
+        "name": "黃榮壹",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B1",
+            "D1",
+            "B2"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "name": "吳靜蕙",
+        "available_weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+        ],
+        "allowed_shifts": [
+            "A1",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "B-",
+            "B1",
+            "D1"
+        ],
+        "roles": [
+            "一般员工"
+        ]
+    }
+]

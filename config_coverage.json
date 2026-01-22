@@ -1,0 +1,30 @@
+[
+    {
+        "time_range": "10:00-17:00",
+        "min_people": 3,
+        "required_roles": [
+            "一般员工"
+        ]
+    },
+    {
+        "time_range": "7:00-12:00",
+        "min_people": 1,
+        "required_roles": [
+            "组长"
+        ]
+    },
+    {
+        "time_range": "12:00-18:00",
+        "min_people": 1,
+        "required_roles": [
+            "组长"
+        ]
+    },
+    {
+        "time_range": "18:00-21:30",
+        "min_people": 2,
+        "required_roles": [
+            "一般员工"
+        ]
+    }
+]

@@ -1,0 +1,205 @@
+{
+    "name": "Agent Schedule Modifier",
+    "nodes": [
+        {
+            "parameters": {},
+            "name": "Start",
+            "type": "n8n-nodes-base.start",
+            "typeVersion": 1,
+            "position": [
+                240,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "lookup",
+                "sheetId": "YOUR_SHEET_ID",
+                "range": "A:Z",
+                "lookupColumn": "日期",
+                "lookupValue": "={{ $json.target_date }}",
+                "options": {}
+            },
+            "name": "Get Target Date Row",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4,
+            "position": [
+                660,
+                300
+            ],
+            "notes": "模擬：輸入我們要修改的那一天 (2026-02-23)"
+        },
+        {
+            "parameters": {
+                "values": {
+                    "string": [
+                        {
+                            "name": "action",
+                            "value": "SWAP"
+                        },
+                        {
+                            "name": "person_a",
+                            "value": "Emp1"
+                        },
+                        {
+                            "name": "person_b",
+                            "value": "Emp2"
+                        },
+                        {
+                            "name": "target_date",
+                            "value": "2026-02-23"
+                        }
+                    ]
+                }
+            },
+            "name": "Mock User Input",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                460,
+                300
+            ],
+            "notes": "這裡模擬 LLM 解析出來的指令：要把 Emp1 和 Emp2 的班互換"
+        },
+        {
+            "parameters": {
+                "operation": "update",
+                "sheetId": "YOUR_SHEET_ID",
+                "range": "A:Z",
+                "key": "日期",
+                "matchType": "exact",
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "={{ $json.person_a }}",
+                            "fieldValue": "={{ $json.new_shift_a }}"
+                        },
+                        {
+                            "fieldId": "={{ $json.person_b }}",
+                            "fieldValue": "={{ $json.new_shift_b }}"
+                        }
+                    ]
+                }
+            },
+            "name": "Update Google Sheet",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4,
+            "position": [
+                1300,
+                300
+            ],
+            "notes": "真正執行寫入：把 Emp1 換成 B 的班，Emp2 換成 A 的班"
+        },
+        {
+            "parameters": {
+                "jsCode": "// 取得 Google Sheet 讀進來的那一行資料 (目前的排班狀態)\nconst rowData = items[0].json;\nconst inputData = $('Mock User Input').first().json;\n\n// 我們要交換 A 和 B 的班\n// 1. 取得 A 目前的班\nconst currentShiftA = rowData[inputData.person_a];\n// 2. 取得 B 目前的班\nconst currentShiftB = rowData[inputData.person_b];\n\n// 3. 交換\nreturn [\n  {\n    json: {\n      ...inputData,\n      new_shift_a: currentShiftB, // A 換成 B 的班\n      new_shift_b: currentShiftA, // B 換成 A 的班\n      current_shift_a: currentShiftA,\n      current_shift_b: currentShiftB\n    }\n  }\n];"
+            },
+            "name": "Calculate New Shifts",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                880,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://host.docker.internal:8000/validate",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "action",
+                            "value": "SWAP"
+                        },
+                        {
+                            "name": "person",
+                            "value": "={{ $json.person_a }}"
+                        },
+                        {
+                            "name": "target_person",
+                            "value": "={{ $json.person_b }}"
+                        },
+                        {
+                            "name": "date_str",
+                            "value": "={{ $json.target_date }}"
+                        },
+                        {
+                            "name": "shift",
+                            "value": "={{ $json.new_shift_a }}"
+                        },
+                        {
+                            "name": "current_schedule",
+                            "value": {}
+                        },
+                        {
+                            "name": "employees",
+                            "value": []
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Run Verification",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 3,
+            "position": [
+                1100,
+                160
+            ],
+            "notes": "呼叫 API 檢查 (這步只是拿來跳通知，不阻擋後面的 Update)"
+        }
+    ],
+    "connections": {
+        "Start": {
+            "main": [
+                [
+                    {
+                        "node": "Mock User Input",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Mock User Input": {
+            "main": [
+                [
+                    {
+                        "node": "Get Target Date Row",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Target Date Row": {
+            "main": [
+                [
+                    {
+                        "node": "Calculate New Shifts",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Calculate New Shifts": {
+            "main": [
+                [
+                    {
+                        "node": "Update Google Sheet",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Run Verification",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
