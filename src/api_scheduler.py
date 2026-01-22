@@ -51,6 +51,7 @@ class ScheduleRequest(BaseModel):
     coverage_rules: List[CoverageRule] = []
     daily_limits: DailyLimit = DailyLimit()
     business_hours: BusinessHours = BusinessHours()
+    max_retries: int = 5  # 每日最大重試次數
 
     class Config:
         json_schema_extra = {
@@ -60,7 +61,8 @@ class ScheduleRequest(BaseModel):
                 "employees": [{"name": "TestEmp", "roles": ["組長"], "allowed_shifts": ["A"]}],
                 "shifts": {"A": {"time": "08:00-16:00", "required_people": 1}},
                 "coverage_rules": [],
-                "daily_limits": {"max_staff_per_day": 5}
+                "daily_limits": {"max_staff_per_day": 5},
+                "max_retries": 5
             }
         }
 
@@ -96,7 +98,7 @@ def generate_schedule(req: ScheduleRequest):
         )
 
         # 執行排班
-        schedule, logs = scheduler.generate()
+        schedule, logs = scheduler.generate(max_retries=req.max_retries)
 
         # 格式化輸出
         # schedule_flat 是為了方便寫入 CSV 或 Google Sheet
