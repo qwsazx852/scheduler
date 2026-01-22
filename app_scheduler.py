@@ -11,8 +11,8 @@ from scheduler_logic import SchedulerLogic
 st.set_page_config(page_title="自订排班神器", layout="wide")
 
 # Constants
-SHIFT_FILE = "config_shifts.json"
-EMP_FILE = "config_employees.json"
+SHIFT_FILE = "config/config_shifts.json"
+EMP_FILE = "config/config_employees.json"
 
 # --- Helper Functions for Persistence ---
 def load_data(filepath, default):
@@ -41,25 +41,25 @@ if 'employees' not in st.session_state:
 
 if 'available_roles' not in st.session_state:
     # Define available roles in the system
-    st.session_state.available_roles = load_data("config_roles.json", ["组长", "一般员工", "储备干部"])
+    st.session_state.available_roles = load_data("config/config_roles.json", ["组长", "一般员工", "储备干部"])
 
 if 'coverage_rules' not in st.session_state:
     # Coverage rules: time ranges that require minimum headcount regardless of shift
     # Format: [{"time_range": "10:00-14:00", "min_people": 3}]
-    st.session_state.coverage_rules = load_data("config_coverage.json", [
+    st.session_state.coverage_rules = load_data("config/config_coverage.json", [
         {"time_range": "10:00-14:00", "min_people": 3}
     ])
 
 if 'daily_limits' not in st.session_state:
     # Daily staff limits: control maximum number of staff per day
-    st.session_state.daily_limits = load_data("config_daily_limits.json", {
+    st.session_state.daily_limits = load_data("config/config_daily_limits.json", {
         "max_staff_per_day": 8,
         "enforce_limit": True
     })
 
 if 'business_hours' not in st.session_state:
     # Business hours: operating hours that must have coverage
-    st.session_state.business_hours = load_data("config_business_hours.json", {
+    st.session_state.business_hours = load_data("config/config_business_hours.json", {
         "start": "07:00",
         "end": "21:30",
         "enforce_coverage": True
@@ -309,7 +309,7 @@ try:
                 
                 if st.button(f"删除规则 {idx+1}", key=f"del_cov_{idx}"):
                     st.session_state.coverage_rules.pop(idx)
-                    save_data("config_coverage.json", st.session_state.coverage_rules)
+                    save_data("config/config_coverage.json", st.session_state.coverage_rules)
                     st.rerun()
                 
                 # Update rule
@@ -339,14 +339,14 @@ try:
                     "min_people": new_min_people,
                     "required_roles": new_required_roles
                 })
-                save_data("config_coverage.json", st.session_state.coverage_rules)
+                save_data("config/config_coverage.json", st.session_state.coverage_rules)
                 st.success("规则已添加！")
                 st.rerun()
             else:
                 st.error("请输入时间范围！")
         
         if st.button("儲存所有覆蓋規則 (Save All Coverage Rules)", type="primary"):
-            save_data("config_coverage.json", st.session_state.coverage_rules)
+            save_data("config/config_coverage.json", st.session_state.coverage_rules)
             st.success("所有覆盖规则已储存！")
     
         with st.expander("📖 使用说明"):
@@ -391,7 +391,7 @@ try:
                 "max_staff_per_day": max_staff,
                 "enforce_limit": enforce_limit
             }
-            save_data("config_daily_limits.json", st.session_state.daily_limits)
+            save_data("config/config_daily_limits.json", st.session_state.daily_limits)
             st.success("每日人数限制已储存！")
     
         with st.expander("📖 使用说明"):
@@ -443,7 +443,7 @@ try:
                 "end": biz_end,
                 "enforce_coverage": enforce_biz
             }
-            save_data("config_business_hours.json", st.session_state.business_hours)
+            save_data("config/config_business_hours.json", st.session_state.business_hours)
             st.success("营业时段设定已储存！")
     
         with st.expander("📖 使用说明"):

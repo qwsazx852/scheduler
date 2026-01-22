@@ -1,6 +1,10 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from scheduler_logic import SchedulerLogic
 import json
 from datetime import datetime
+
 
 # 載入配置
 def load_config(filename, default):

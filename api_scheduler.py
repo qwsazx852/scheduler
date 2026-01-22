@@ -254,11 +254,11 @@ def simulate_schedule():
         ]
         
         # 讀取本地設定檔 (與 Streamlit App 共用)
-        shifts_config = load_json("config_shifts.json", default_shifts)
-        employees_config = load_json("config_employees.json", default_employees)
-        coverage_rules = load_json("config_coverage.json", [{"time_range": "10:00-14:00", "min_people": 3}])
-        daily_limits = load_json("config_daily_limits.json", {"max_staff_per_day": 8, "enforce_limit": True})
-        business_hours = load_json("config_business_hours.json", {"start": "07:00", "end": "21:30", "enforce_coverage": True})
+        shifts_config = load_json("config/config_shifts.json", default_shifts)
+        employees_config = load_json("config/config_employees.json", default_employees)
+        coverage_rules = load_json("config/config_coverage.json", [{"time_range": "10:00-14:00", "min_people": 3}])
+        daily_limits = load_json("config/config_daily_limits.json", {"max_staff_per_day": 8, "enforce_limit": True})
+        business_hours = load_json("config/config_business_hours.json", {"start": "07:00", "end": "21:30", "enforce_coverage": True})
 
         # 設定排班月份 (下個月)
         today = date.today()
