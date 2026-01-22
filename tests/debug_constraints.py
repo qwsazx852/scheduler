@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from scheduler_logic import SchedulerLogic
+from src.scheduler_logic import SchedulerLogic
 import json
 from datetime import datetime
 

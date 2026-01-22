@@ -26,18 +26,28 @@ An AI-powered, constraint-based employee scheduling system designed for fairness
 - `scheduler_logic.py`: Core algorithms and business logic.
 - `config_*.json`: Configuration files for employees, shifts, rules.
 
+## Project Structure 🏗️ (Industry Standard)
+
+- **`src/`**: Source code (Application logic, UI, API).
+- **`config/`**: Configuration files (JSON).
+- **`tests/`**: Debug scripts and unit tests.
+- **`run.sh`**: Helper script for easy execution.
+
 ## How to Run 🏃‍♂️
 
-### 1. Install Dependencies
+### Quick Start
 ```bash
-pip install -r requirements.txt
+chmod +x run.sh
+./run.sh        # Runs UI
+./run.sh api    # Runs API
+./run.sh test   # Runs Tests
 ```
 
-### 2. Run UI (Streamlit)
+### Manual Execution
 ```bash
-streamlit run app_scheduler.py
+streamlit run src/app_scheduler.py
+python3 src/api_scheduler.py
 ```
-Visit http://localhost:8501
 
 ### 3. Run API Server
 ```bash
