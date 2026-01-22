@@ -611,8 +611,21 @@ try:
 
         else:
             # 1. Generate Button
-            if st.button("开始排班 (Start Scheduling)", type="primary"):
+            if st.button("🚀 开始排班 (Start Scheduling)", type="primary", key="btn_generate"):
+                # Clear previous results to force fresh generation
+                if 'gen_schedule' in st.session_state:
+                    del st.session_state.gen_schedule
+                if 'gen_log' in st.session_state:
+                    del st.session_state.gen_log
+                if 'gen_df' in st.session_state:
+                    del st.session_state.gen_df
+                if 'gen_df_emp' in st.session_state:
+                    del st.session_state.gen_df_emp
+                
                 with st.spinner("正在生成排班，請稍候... (Generating Schedule...)"):
+                    import time
+                    start_time = time.time()
+                    
                     scheduler = SchedulerLogic(
                         year=year,
                         month=month,
@@ -625,14 +638,17 @@ try:
                 
                     schedule_dict, log = scheduler.generate()
                     
-                    # Save results to session_state
+                    elapsed = time.time() - start_time
+                    
+                    # Save results to session_state with timestamp
                     st.session_state.gen_schedule = schedule_dict
                     st.session_state.gen_log = log
                     st.session_state.gen_df = scheduler.get_schedule_dataframe()
                     st.session_state.gen_df_emp = scheduler.get_employee_schedule_dataframe() if hasattr(scheduler, 'get_employee_schedule_dataframe') else pd.DataFrame()
                     st.session_state.has_generated = True
+                    st.session_state.last_gen_time = time.strftime("%Y-%m-%d %H:%M:%S")
                     
-                    st.success("Generate Success! Reloading...")
+                    st.success(f"✅ 排班完成！耗時 {elapsed:.2f} 秒")
                     st.rerun()
 
             # 2. Display Results (if exists in state)
@@ -641,6 +657,10 @@ try:
                 log = st.session_state.gen_log
                 df = st.session_state.gen_df
                 df_emp = st.session_state.gen_df_emp
+                
+                # Show generation timestamp
+                if 'last_gen_time' in st.session_state:
+                    st.info(f"📅 排班生成時間: {st.session_state.last_gen_time}")
                 
                 # Display Logs (Warnings)
                 if log:

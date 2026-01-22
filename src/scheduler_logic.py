@@ -229,6 +229,10 @@ class SchedulerLogic:
         回傳: (schedule, log)
         """
         import random
+        import time
+        
+        # 使用時間戳記作為隨機種子，確保每次生成都不同
+        random.seed(int(time.time() * 1000) % 2**32)
         
         log = []
         
@@ -242,6 +246,9 @@ class SchedulerLogic:
             } 
             for emp in self.employees
         }
+        
+        # 初始隨機打亂員工順序（增加變化性）
+        random.shuffle(self.employees)
         
         # 逐日排班
         for current_date in self.dates:
