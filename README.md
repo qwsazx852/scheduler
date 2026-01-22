@@ -2,6 +2,8 @@
 
 An AI-powered, constraint-based employee scheduling system designed for fairness and flexibility.
 
+**📖 [完整使用手冊 (User Manual)](USER_GUIDE.md)**: 點此查看完整的安裝、設定與自動化串接教學。
+
 ## Features ✨
 
 - **Smart Logic**:
