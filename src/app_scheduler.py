@@ -98,7 +98,7 @@ try:
             with col1:
                 new_code = st.text_input("班别代码", key="new_shift_code", placeholder="例如: C")
             with col2:
-                new_time = st.text_input("时间范围", key="new_shift_time", placeholder="例如: 16:00-22:00")
+                new_time = st.text_input("时间范围", key="new_shift_time", placeholder="例如: 10:00-14:00,17:00-21:00")
             with col3:
                 new_enforce = st.checkbox("启用人数限制", value=True, key="new_shift_enforce")
             with col4:
@@ -728,14 +728,17 @@ try:
                     hourly_counts = {f"{h:02d}:00": 0 for h in range(24)}
                     
                     # Get time parser helper
-                    def parse_time_range(range_str):
-                        try:
-                            start_str, end_str = range_str.split('-')
-                            s_h, s_m = map(int, start_str.split(':'))
-                            e_h, e_m = map(int, end_str.split(':'))
-                            return s_h * 60 + s_m, e_h * 60 + e_m
-                        except:
-                            return 0, 0
+                    def parse_time_segments(range_str):
+                        segments = []
+                        for part in range_str.split(','):
+                            try:
+                                start_str, end_str = part.strip().split('-')
+                                s_h, s_m = map(int, start_str.split(':'))
+                                e_h, e_m = map(int, end_str.split(':'))
+                                segments.append((s_h * 60 + s_m, e_h * 60 + e_m))
+                            except:
+                                pass
+                        return segments
 
                     daily_sched = schedule_dict.get(selected_date_str, {})
                     
@@ -746,7 +749,7 @@ try:
                         shift_info = st.session_state.shifts.get(shift_name)
                         if not shift_info: continue
                         
-                        s_min, e_min = parse_time_range(shift_info.get("time", "00:00-00:00"))
+                        segments = parse_time_segments(shift_info.get("time", "00:00-00:00"))
                         
                         # Increment counts for each hour that this shift covers
                         for h in range(24):
@@ -754,7 +757,13 @@ try:
                             hour_start = current_min
                             hour_end = current_min + 60
                             
-                            if s_min < hour_end and e_min > hour_start:
+                            is_covered = False
+                            for s_min, e_min in segments:
+                                if s_min < hour_end and e_min > hour_start:
+                                    is_covered = True
+                                    break
+                            
+                            if is_covered:
                                 hourly_counts[f"{h:02d}:00"] += count
                     
                     # 3. Display Chart
@@ -781,24 +790,31 @@ try:
                         if not shift_info: continue
                         
                         time_str = shift_info.get("time", "00:00-00:00")
-                        try:
-                            start_str, end_str = time_str.split('-')
-                            dummy_date = selected_date_str 
-                            
-                            for emp_name in emp_list:
-                                role_str = emp_role_map.get(emp_name, "")
-                                display_name = f"{emp_name} ({role_str})" if role_str else emp_name
+                        
+                        # Support split shifts in Gantt
+                        parts = time_str.split(',')
+                        for part_idx, part in enumerate(parts):
+                            try:
+                                start_str, end_str = part.strip().split('-')
+                                dummy_date = selected_date_str 
                                 
-                                gantt_data.append({
-                                    "Person": display_name,
-                                    "Role": role_str,
-                                    "Shift": shift_name,
-                                    "Start": f"{dummy_date}T{start_str}:00",
-                                    "End": f"{dummy_date}T{end_str}:00",
-                                    "Color": shift_name 
-                                })
-                        except:
-                            continue
+                                for emp_name in emp_list:
+                                    role_str = emp_role_map.get(emp_name, "")
+                                    display_name = f"{emp_name} ({role_str})" if role_str else emp_name
+                                    
+                                    # Add suffix for split parts
+                                    shift_display = shift_name if len(parts) == 1 else f"{shift_name}-{part_idx+1}"
+                                    
+                                    gantt_data.append({
+                                        "Person": display_name,
+                                        "Role": role_str,
+                                        "Shift": shift_display,
+                                        "Start": f"{dummy_date}T{start_str}:00",
+                                        "End": f"{dummy_date}T{end_str}:00",
+                                        "Color": shift_name 
+                                    })
+                            except:
+                                continue
                             
                     if gantt_data:
                         gantt_df = pd.DataFrame(gantt_data)

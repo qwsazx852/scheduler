@@ -14,11 +14,12 @@ def load_config(filename, default):
     except:
         return default
 
-shifts = load_config('config_shifts.json', {})
-employees = load_config('config_employees.json', [])
-coverage = load_config('config_coverage.json', [])
-daily_limits = load_config('config_daily_limits.json', {})
-business_hours = load_config('config_business_hours.json', {})
+shifts = load_config('config/config_shifts.json', {})
+employees = load_config('config/config_employees.json', [])
+coverage = load_config('config/config_coverage.json', [])
+daily_limits = load_config('config/config_daily_limits.json', {})
+business_hours = load_config('config/config_business_hours.json', {})
+
 
 # 初始化
 scheduler = SchedulerLogic(2026, 2, employees, shifts, coverage, daily_limits, business_hours)
@@ -37,13 +38,7 @@ if time_14:
     print(f"Found Need for 14:00-15:00: {time_14}")
 else:
     print("CRITICAL: No need generated for 14:00-15:00!")
-    # Check what IS generated
     print("Sample Needs:", [n['time_range'] for n in needs[:10]])
-
-# 模擬排班
-scheduler.schedule = {date_str: {s: [] for s in scheduler.shifts}}
-# Init history
-scheduler.history = {e['name']: {"worked_days": set(), "consecutive_days": 0, "last_shift_end_minutes": None} for e in employees}
 
 print("\n--- Simulating 14:00 Assignment ---")
 if time_14:
@@ -54,27 +49,28 @@ if time_14:
         print(f"\nChecking candidates for shift {s_name}:")
         candidates = scheduler._get_available_candidates(target_date, s_name, [])
         print(f"Found {len(candidates)} candidates.")
-        
-        for emp in candidates:
-            is_ok, reason = scheduler._is_available(emp, target_date, s_name)
-            if not is_ok:
-                print(f"  - {emp['name']}: REJECTED ({reason})")
-            else:
-                print(f"  - {emp['name']}: OK")
 
-print("\n--- Full Generation & Result for 14:00 ---")
+print("\n--- Full Generation & Result for 18:00 ---")
 scheduler.schedule_one_day(target_date)
 
-# Calculate coverage at 14:30
-count_1430 = scheduler._count_coverage_in_timerange(date_str, "14:30-14:31", [])
-print(f"People present at 14:30: {count_1430}")
+# Calculate coverage at 19:00
+count_1900 = scheduler._count_coverage_in_timerange(date_str, "19:00-19:01", [])
+print(f"People present at 19:00: {count_1900}")
 
 # List who is present
 present = []
+unique_staff = set()
 for s, ppl in scheduler.schedule[date_str].items():
+    for p in ppl:
+        unique_staff.add(p)
+    
     # Check overlap
     s_start, s_end = scheduler._parse_time_range(scheduler.shifts[s]['time'])
-    if s_start <= 14*60+30 <= s_end:
+    if s_start <= 19*60 <= s_end:
         for p in ppl:
             present.append(f"{p} ({s})")
+
 print(f"Present Staff: {present}")
+print(f"Total Unique Staff Today: {len(unique_staff)} (Max: {scheduler.daily_limits.get('max_staff_per_day', 999)})")
+print(f"All Needs: {[n['time_range'] + ' min:' + str(n['min_people']) for n in needs]}")
+

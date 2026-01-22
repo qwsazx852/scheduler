@@ -62,6 +62,22 @@ class SchedulerLogic:
         start, end = range_str.split('-')
         return SchedulerLogic._parse_time(start.strip()), SchedulerLogic._parse_time(end.strip())
 
+    @staticmethod
+    def _parse_shift_segments(time_str):
+        """解析班別時間，支援多段式 (例如 '10:00-14:00, 17:00-21:00')"""
+        segments = []
+        if not time_str: return segments
+        parts = time_str.split(',')
+        for part in parts:
+            try:
+                start_str, end_str = part.strip().split('-')
+                s = SchedulerLogic._parse_time(start_str)
+                e = SchedulerLogic._parse_time(end_str)
+                segments.append((s, e))
+            except:
+                pass
+        return segments
+
     def _get_required_roles_for_shift(self, shift_name):
         """
         辨識此班別是否與任何'需要特定角色'的覆蓋規則重疊
@@ -75,7 +91,7 @@ class SchedulerLogic:
             return required_roles
         
         try:
-            s_start, s_end = self._parse_time_range(shift_time)
+            segments = self._parse_shift_segments(shift_time)
             
             for rule in self.coverage_rules:
                 # 獲取角色列表
@@ -89,8 +105,14 @@ class SchedulerLogic:
                 
                 try:
                     r_start, r_end = self._parse_time_range(rule["time_range"])
-                    # 檢查時間重疊
-                    if s_start < r_end and s_end > r_start:
+                    # 檢查任何一段時間是否重疊
+                    is_overlap = False
+                    for s_start, s_end in segments:
+                        if s_start < r_end and s_end > r_start:
+                            is_overlap = True
+                            break
+                    
+                    if is_overlap:
                         for role in roles_to_check:
                             if role:
                                 required_roles.add(role)
@@ -121,9 +143,15 @@ class SchedulerLogic:
             if not s_time: continue
             
             try:
-                s_start, s_end = self._parse_time_range(s_time)
-                # 重疊邏輯: (StartA < EndB) and (EndA > StartB)
-                if s_start < end_time and s_end > start_time:
+                segments = self._parse_shift_segments(s_time)
+                # 檢查任何一段時間是否重疊
+                is_overlap = False
+                for s_start, s_end in segments:
+                    if s_start < end_time and s_end > start_time:
+                        is_overlap = True
+                        break
+                
+                if is_overlap:
                     # 檢查被安排的人是否有該角色
                     for emp_name in assigned_emps:
                         emp = next((e for e in self.employees if e['name'] == emp_name), None)
@@ -161,7 +189,13 @@ class SchedulerLogic:
         if last_shift_end is not None:
             try:
                 shift_time = self.shifts[shift_name].get("time", "00:00-23:59")
-                shift_start_min, shift_end_min = self._parse_time_range(shift_time)
+                segments = self._parse_shift_segments(shift_time)
+                if not segments:
+                     # Fallback
+                     shift_start_min = 0
+                else:
+                     # 取第一段的開始時間
+                     shift_start_min = segments[0][0]
                 
                 # 計算距離上次下班的時間
                 # 處理跨日情況：如果上次下班時間 > 今天上班時間，表示跨日了
@@ -188,12 +222,14 @@ class SchedulerLogic:
 
         return True, "OK"
 
-    def generate(self):
+    def generate(self, max_retries=5):
         """
-        執行排班算法 (Greedy Algorithm with Randomization)
+        執行排班算法 (Constraint-First with Per-Day Retry)
+        每一天都必須成功排班，否則重試
         回傳: (schedule, log)
         """
-        success = True
+        import random
+        
         log = []
         
         # 重置排班狀態與歷史紀錄
@@ -202,31 +238,111 @@ class SchedulerLogic:
             emp['name']: {
                 "worked_days": set(), 
                 "consecutive_days": 0,
-                "last_shift_end_minutes": None  # CRITICAL FIX: 防止花花班檢查需要此欄位
+                "last_shift_end_minutes": None
             } 
             for emp in self.employees
         }
         
+        # 逐日排班
         for current_date in self.dates:
             date_str = current_date.strftime("%Y-%m-%d")
+            day_success = False
             
-            # 1. 排定當天班表
-            day_log = self.schedule_one_day(current_date)
-            log.extend(day_log)
+            # 對每一天進行重試
+            for attempt in range(max_retries):
+                # 保存當前狀態（用於回滾）
+                saved_schedule = {k: {s: list(v) for s, v in shifts.items()} for k, shifts in self.schedule.items()}
+                saved_history = {
+                    name: {
+                        "worked_days": set(hist["worked_days"]),
+                        "consecutive_days": hist["consecutive_days"],
+                        "last_shift_end_minutes": hist["last_shift_end_minutes"]
+                    }
+                    for name, hist in self.history.items()
+                }
+                
+                if attempt > 0:
+                    log.append(f"🔄 {date_str} 第 {attempt + 1} 次嘗試...")
+                    # 恢復到本日開始前的狀態
+                    self.schedule = saved_schedule
+                    self.history = saved_history
+                    # 打亂員工順序以探索不同解
+                    random.shuffle(self.employees)
+                
+                # 1. 排定當天班表
+                day_log = self.schedule_one_day(current_date)
+                
+                # 2. 重置沒上班的人的連續天數計數器
+                for emp in self.employees:
+                    if date_str not in self.history[emp['name']]["worked_days"]:
+                        self.history[emp['name']]["consecutive_days"] = 0
+                
+                # 3. 驗證當天覆蓋率規則
+                coverage_warnings = self._validate_coverage(date_str)
+                
+                # 4. 驗證營業時段覆蓋
+                business_hours_warnings = self._validate_business_hours_coverage(date_str)
+                
+                # 檢查是否有違規
+                violations = []
+                
+                # 只計算關鍵的覆蓋不足問題，忽略其他警告
+                for line in coverage_warnings + business_hours_warnings:
+                    # 只有真正的覆蓋不足才算違規
+                    if "Coverage Warning" in line or "營業時段空窗" in line:
+                        violations.append(line)
+                    # 角色缺失也算違規
+                    elif "Role Warning" in line and "缺少必要角色" in line:
+                        violations.append(line)
+                
+                # 如果本日成功（無關鍵違規）
+                if len(violations) == 0:
+                    log.append(f"✅ {date_str} 排班成功 (嘗試 {attempt + 1} 次)")
+                    # 記錄所有日誌（包括非關鍵警告）
+                    log.extend(day_log)
+                    if coverage_warnings:
+                        log.extend([w for w in coverage_warnings if w not in violations])
+                    if business_hours_warnings:
+                        log.extend([w for w in business_hours_warnings if w not in violations])
+                    day_success = True
+                    break
+                else:
+                    if attempt < max_retries - 1:
+                        log.append(f"⚠️ {date_str} 有 {len(violations)} 個問題，重試中...")
+                    else:
+                        # 最後一次嘗試也失敗
+                        log.append(f"❌ {date_str} 經過 {max_retries} 次嘗試仍無法完美排班")
+                        log.extend(day_log)
+                        log.extend(coverage_warnings)
+                        log.extend(business_hours_warnings)
+                        log.append("")
+                        log.append(f"🔍 {date_str} 違規項目:")
+                        for v in violations[:5]:  # 只顯示前5個
+                            log.append(f"  {v}")
+                        if len(violations) > 5:
+                            log.append(f"  ... 還有 {len(violations) - 5} 個問題")
             
-            # 2. 重置沒上班的人的連續天數計數器
-            for emp in self.employees:
-                if date_str not in self.history[emp['name']]["worked_days"]:
-                    self.history[emp['name']]["consecutive_days"] = 0
-            
-            # 3. 驗證當天覆蓋率規則 (Coverage Rules)
-            coverage_warnings = self._validate_coverage(date_str)
-            log.extend(coverage_warnings)
-            
-            # 4. 驗證營業時段覆蓋 (Business Hours Coverage)
-            business_hours_warnings = self._validate_business_hours_coverage(date_str)
-            log.extend(business_hours_warnings)
-            
+            # 如果本日失敗，提供建議
+            if not day_success:
+                log.append("")
+                log.append(f"💡 {date_str} 建議:")
+                log.append("  1. 檢查該日是否有足夠的可用員工")
+                log.append("  2. 確認班別時間能覆蓋所有需求時段")
+                log.append("  3. 考慮放寬該日的人數限制")
+                log.append("")
+        
+        # 統計整體成功率
+        total_days = len(self.dates)
+        success_days = sum(1 for d in self.dates if d.strftime("%Y-%m-%d") in self.schedule and any(self.schedule[d.strftime("%Y-%m-%d")].values()))
+        
+        log.insert(0, "")
+        log.insert(0, f"📊 整體排班結果: {success_days}/{total_days} 天成功")
+        if success_days == total_days:
+            log.insert(0, "🎉 完美！所有日期都成功排班！")
+        else:
+            log.insert(0, f"⚠️ 有 {total_days - success_days} 天無法完美排班")
+        log.insert(0, "")
+        
         return self.schedule, log
     
     def _validate_coverage(self, date_str):
@@ -249,9 +365,10 @@ class SchedulerLogic:
             
             shift_time = self.shifts[shift_name].get("time", "00:00-23:59")
             try:
-                start_min, end_min = self._parse_time_range(shift_time)
-                for emp_name in employees:
-                    timeline.append((start_min, end_min, emp_name))
+                segments = self._parse_shift_segments(shift_time)
+                for start_min, end_min in segments:
+                    for emp_name in employees:
+                        timeline.append((start_min, end_min, emp_name))
             except:
                 continue
         
@@ -333,9 +450,10 @@ class SchedulerLogic:
             
             shift_time = self.shifts[shift_name].get("time", "00:00-23:59")
             try:
-                start_min, end_min = self._parse_time_range(shift_time)
-                for emp_name in employees:
-                    timeline.append((start_min, end_min, emp_name))
+                segments = self._parse_shift_segments(shift_time)
+                for start_min, end_min in segments:
+                    for emp_name in employees:
+                        timeline.append((start_min, end_min, emp_name))
             except:
                 continue
         
@@ -383,7 +501,7 @@ class SchedulerLogic:
             return False, ""
         
         try:
-            shift_start, shift_end = self._parse_time_range(shift_time)
+            segments = self._parse_shift_segments(shift_time)
         except:
             return False, ""
         
@@ -397,7 +515,13 @@ class SchedulerLogic:
                 rule_start, rule_end = self._parse_time_range(rule["time_range"])
                 
                 # 檢查此班別是否與規則時段重疊
-                if shift_start < rule_end and shift_end > rule_start:
+                is_overlap = False
+                for s_start, s_end in segments:
+                    if s_start < rule_end and s_end > rule_start:
+                        is_overlap = True
+                        break
+                        
+                if is_overlap:
                     # 計算目前此時段有多少人（假設分配了這個員工）
                     working_people = set()
                     working_people.add(emp_name)  # 加入即將分配的人
@@ -410,8 +534,14 @@ class SchedulerLogic:
                             continue
                         
                         try:
-                            s_start, s_end = self._parse_time_range(s_time)
-                            if s_start < rule_end and s_end > rule_start:
+                            s_segments = self._parse_shift_segments(s_time)
+                            s_overlap = False
+                            for ss_start, ss_end in s_segments:
+                                if ss_start < rule_end and ss_end > rule_start:
+                                    s_overlap = True
+                                    break
+                            
+                            if s_overlap:
                                 working_people.update(employees)
                         except:
                             continue
@@ -527,10 +657,18 @@ class SchedulerLogic:
                 s_time = shift_info.get('time')
                 if not s_time:
                     continue
-                s_start, s_end = self._parse_time_range(s_time)
-                # 檢查時間重疊
-                if s_start < need_end and s_end > need_start:
-                    suitable.append(shift_name)
+                
+                try:
+                    segments = self._parse_shift_segments(s_time)
+                    is_overlap = False
+                    for s_start, s_end in segments:
+                        if s_start < need_end and s_end > need_start:
+                            is_overlap = True
+                            break
+                    if is_overlap:
+                        suitable.append(shift_name)
+                except:
+                    continue
         except:
             pass
         return suitable
@@ -567,9 +705,14 @@ class SchedulerLogic:
                 continue
             
             try:
-                s_start, s_end = self._parse_time_range(s_time)
-                # 檢查重疊
-                if s_start < need_end and s_end > need_start:
+                segments = self._parse_shift_segments(s_time)
+                is_overlap = False
+                for s_start, s_end in segments:
+                    if s_start < need_end and s_end > need_start:
+                        is_overlap = True
+                        break
+                
+                if is_overlap:
                     for emp_name in emp_list:
                         # 如果有角色要求,檢查員工是否符合
                         if required_roles:
@@ -648,8 +791,9 @@ class SchedulerLogic:
         # 更新最後下班時間
         try:
             shift_time = self.shifts[shift_name].get('time', '00:00-23:59')
-            _, shift_end_min = self._parse_time_range(shift_time)
-            self.history[emp_name]['last_shift_end_minutes'] = shift_end_min
+            segments = self._parse_shift_segments(shift_time)
+            if segments:
+                self.history[emp_name]['last_shift_end_minutes'] = segments[-1][1]
         except:
             pass
 
@@ -703,165 +847,294 @@ class SchedulerLogic:
         return pd.DataFrame(data)
 
 
+    def _calculate_shift_utility(self, shift_name, needs):
+        """Calculates utility score of a shift based on how many needs it covers."""
+        score = 0
+        shift_info = self.shifts.get(shift_name)
+        if not shift_info: return 0
+        
+        try:
+            segments = self._parse_shift_segments(shift_info.get("time"))
+        except:
+            return 0
+            
+        for need in needs:
+            # Need info: time_range, priority, min_people
+            # Calculate overlap duration
+            try:
+                n_start, n_end = self._parse_time_range(need['time_range'])
+                
+                overlap_min = 0
+                for s_start, s_end in segments:
+                    # Overlap logic
+                    o_start = max(s_start, n_start)
+                    o_end = min(s_end, n_end)
+                    if o_end > o_start:
+                        overlap_min += (o_end - o_start)
+                
+                if overlap_min > 0:
+                    # Weight by priority
+                    # CRITICAL (Biz Hours) = 3
+                    # HIGH (Rule with Role) = 2
+                    # MEDIUM (Rule no Role) = 1
+                    prio_weight = 3 if need.get('priority') == 'CRITICAL' else (2 if need.get('priority') == 'HIGH' else 1)
+                    score += overlap_min * prio_weight
+                    
+                    # Heuristic: Bonus for aligning with start time (reduces gaps)
+                    # If shift starts at or before need start, it fills the beginning optimally.
+                    if s_start <= n_start:
+                        score += overlap_min * 0.5
+            except:
+                continue
+        
+        return score
+
+    def _get_shift_timeline(self, shift_name):
+        """Get 5-min resolution timeline for a shift (1=active, 0=inactive)"""
+        timeline = [0] * 289 # 00:00 to 24:00 (last index 288 for 24:00)
+        shift_info = self.shifts.get(shift_name)
+        if not shift_info: return timeline
+        
+        try:
+            segments = self._parse_shift_segments(shift_info.get("time"))
+            for start, end in segments:
+                s_idx = max(0, int(start // 5))
+                e_idx = min(288, int(end // 5))
+                for i in range(s_idx, e_idx):
+                    timeline[i] = 1
+        except:
+            pass
+        return timeline
+
     def schedule_one_day(self, current_date):
         """
-        排列單一天的班表 (覆蓋驅動算法 - Coverage-Driven Algorithm)
-        回傳: log list
+        Constraint-First Scheduling Algorithm (Constraints -> Shifts -> People)
         """
         date_str = current_date.strftime("%Y-%m-%d")
         day_log = []
         
-        if date_str not in self.schedule:
-            self.schedule[date_str] = {s: [] for s in self.shifts}
-        
-        # 分析當日覆蓋需求
-        coverage_needs = self._analyze_daily_coverage_needs(date_str)
-        
-        # 追蹤已分配人員
-        assigned_people = set()
-        max_daily_staff = self.daily_limits.get('max_staff_per_day', 8)
+        # Global Limits
+        max_daily_staff = self.daily_limits.get('max_staff_per_day', 50)
         enforce_daily_limit = self.daily_limits.get('enforce_limit', True)
+
+        # Initialize schedule structure for today
+        self.schedule[date_str] = {s: [] for s in self.shifts}
+
+        # 1. Build Demand Profile (5-min resolution)
+        # 288 slots (5 mins per slot). 
+        T_MAX = 288
+        general_demand = [0] * T_MAX
+        role_demands = {} # role -> [0]*T_MAX
         
-        # 階段1: 滿足所有覆蓋需求
-        for need in coverage_needs:
-            if enforce_daily_limit and len(assigned_people) >= max_daily_staff:
-                day_log.append(f"⚠️ {date_str} 已達每日人數上限 ({max_daily_staff}人),停止分配")
-                break
-            
-            # 找出能覆蓋此時段的班別
-            suitable_shifts = self._find_shifts_for_timerange(need['time_range'])
-            
-            if not suitable_shifts:
-                day_log.append(f"⚠️ {date_str} {need['time_range']} 沒有合適的班別可覆蓋")
-                continue
-            
-            # 計算此時段還需要多少人
-            current_coverage = self._count_coverage_in_timerange(
-                date_str, need['time_range'], need.get('required_roles', [])
-            )
-            still_needed = max(0, need['min_people'] - current_coverage)
-            
-            if still_needed == 0:
-                continue  # 此時段需求已滿足
-            
-            # 嘗試為每個合適的班別分配人員
-            # Shuffle to prevent always picking the same shift type (e.g. always A1/B/C)
-            random.shuffle(suitable_shifts)
-            
-            for shift_name in suitable_shifts:
-                if still_needed <= 0:
-                    break
-                if enforce_daily_limit and len(assigned_people) >= max_daily_staff:
-                    break
-                
-                # 取得候選人 (優先有角色的)
-                candidates = self._get_available_candidates(
-                    current_date, shift_name, need.get('required_roles', [])
-                )
-                
-                for emp in candidates:
-                    if still_needed <= 0:
-                        break
-                    if enforce_daily_limit and len(assigned_people) >= max_daily_staff:
-                        break
-                    
-                    # 跳過已排班的人
-                    if emp['name'] in assigned_people:
-                        continue
-                    
-                    # 檢查可用性 (勞基法規則等)
-                    is_ok, reason = self._is_available(emp, current_date, shift_name)
-                    if not is_ok:
-                        continue
+        # Helper to add demand
+        def add_demand(target_timeline, start, end, count):
+             s = max(0, int(start // 5))
+             e = min(T_MAX, int(end // 5))
+             for i in range(s, e):
+                 target_timeline[i] = max(target_timeline[i], count)
+
+        # 1.1 Business Hours (Min 1 person) - General Demand
+        if self.business_hours.get("enforce_coverage", False):
+             try:
+                 bs = self._parse_time(self.business_hours["start"])
+                 be = self._parse_time(self.business_hours["end"])
+                 add_demand(general_demand, bs, be, 1)
+             except: pass
+
+        # 1.2 Coverage Rules
+        for rule in self.coverage_rules:
+             try:
+                 rs, re = self._parse_time_range(rule["time_range"])
+                 needed = rule["min_people"]
+                 roles = rule.get("required_roles", [])
+                 if not roles and rule.get("required_role"):
+                     roles = [rule.get("required_role")]
+                 
+                 add_demand(general_demand, rs, re, needed)
+                 
+                 for r in roles:
+                     if r not in role_demands: role_demands[r] = [0] * T_MAX
+                     add_demand(role_demands[r], rs, re, 1) 
+             except: pass
+
+        # 2. Comparison Logic for Shifts
+        all_shift_timelines = {s: self._get_shift_timeline(s) for s in self.shifts}
+        
+        # Skeleton: List of (shift_name, assigned_role_filter)
+        skeleton = []
+        current_general_coverage = [0] * T_MAX
+        current_role_coverage = {r: [0]*T_MAX for r in role_demands}
+        
+        # Helper: Check Shift Limits
+        def can_add_shift(s_name):
+            # 1. Daily Limit
+            if enforce_daily_limit and len(skeleton) >= max_daily_staff:
+                return False
+            # 2. Shift Specific Limit
+            s_info = self.shifts.get(s_name)
+            if s_info and s_info.get("enforce_headcount", False):
+                limit = s_info.get("required_people", 99)
+                current_count = sum(1 for s, _ in skeleton if s == s_name)
+                if current_count >= limit:
+                    return False
+            return True
+
+        # 3. Solve Role Demands First
+        for role, r_demand in role_demands.items():
+             while True:
+                 # Check Limit
+                 if enforce_daily_limit and len(skeleton) >= max_daily_staff:
+                     day_log.append(f"⚠️ 達到每日人數上限 ({max_daily_staff})，停止排班 (角色: {role})")
+                     break
+
+                 # Check Unmet Role Demand
+                 unmet = [max(0, r_demand[i] - current_role_coverage[role][i]) for i in range(T_MAX)]
+                 if sum(unmet) == 0: break
+                 
+                 # Find best shift covering unmet
+                 best_s, best_score = None, -1
+                 
+                 for s_name, timeline in all_shift_timelines.items():
+                     if not self.shifts[s_name].get('time'): continue
+                     if not can_add_shift(s_name): continue # CHECK LIMITS
+
+                     # Utility: How much UNMET demand does it cover?
+                     score = 0
+                     covered_minutes = 0
                      
-                    # Fix: 如果是為了解決「特定角色需求」，則只分配擁有該角色的員工
-                    if need.get('required_roles'):
-                         has_required_role = any(r in emp.get('roles', []) for r in need['required_roles'])
-                         if not has_required_role:
-                             continue
-
-                    
-                    # 分配成功!
-
-                    self.schedule[date_str][shift_name].append(emp['name'])
-                    assigned_people.add(emp['name'])
-                    
-                    # 更新歷史紀錄
-                    self._update_employee_history(emp['name'], date_str, shift_name)
-                    
-                    # 重新計算覆蓋 (因為新增了人)
-                    current_coverage = self._count_coverage_in_timerange(
-                        date_str, need['time_range'], need.get('required_roles', [])
-                    )
-                    still_needed = max(0, need['min_people'] - current_coverage)
-                    
-                    # 記錄角色分配
-                    if need.get('required_roles'):
-                        for role in need['required_roles']:
-                            if role in emp.get('roles', []):
-                                day_log.append(
-                                    f"✓ {date_str} {shift_name} 分配 '{role}': {emp['name']}"
-                                )
+                     first_unmet = -1
+                     for k in range(T_MAX):
+                         if timeline[k] and unmet[k]:
+                             score += 10 # Base score per slot covered
+                             covered_minutes += 5
+                             if first_unmet == -1: first_unmet = k
+                     
+                     if covered_minutes == 0: continue
+                     
+                     # Start Alignment Bonus
+                     if first_unmet > 0 and timeline[first_unmet-1] == 0:
+                         score += 500 
+                     
+                     # A2C Bonus
+                     if "A2C" in s_name: score += 5
+                     
+                     if score > best_score:
+                         best_score = score
+                         best_s = s_name
+                 
+                 if not best_s:
+                     # Attempted all shifts, none valid (often due to limits)
+                     day_log.append(f"⚠️ 無法滿足角色需求: {role} (可能因班別限制)")
+                     break
+                 
+                 # Commit Shift
+                 skeleton.append((best_s, role))
+                 # Update coverages
+                 tl = all_shift_timelines[best_s]
+                 for i in range(T_MAX):
+                     if tl[i]:
+                         current_general_coverage[i] += 1
+                         current_role_coverage[role][i] += 1
         
-        # 階段2: 智慧平衡填補 (Smart Load Balancing)
-        # 目標: 將剩餘人力均勻分配到各班別，優先填補人數最少的班別，避免"晚班只有1人"的情況
-        
-        while (not enforce_daily_limit or len(assigned_people) < max_daily_staff):
-            # 1. 評估各班別目前人數
-            shift_status = []
-            for s_name in self.shifts:
-                # 排除完全無法上班的班別 (例如時間未定義)
-                if not self.shifts[s_name].get('time'):
-                    continue
-                count = len(self.schedule[date_str][s_name])
-                shift_status.append((s_name, count))
+        # 4. Solve General Demands
+        while True:
+            # Check Limit
+            if enforce_daily_limit and len(skeleton) >= max_daily_staff:
+                 day_log.append(f"⚠️ 達到每日人數上限 ({max_daily_staff})，停止排班 (一般覆蓋)")
+                 break
+
+            unmet = [max(0, general_demand[i] - current_general_coverage[i]) for i in range(T_MAX)]
+            if sum(unmet) == 0: break
             
-            # 2. 排序: 人數少的優先
-            # 加入隨機因子打破平手，避免總是填同一個班
-            random.shuffle(shift_status)
-            shift_status.sort(key=lambda x: x[1])
+            best_s, best_score = None, -1
             
-            assigned_someone = False
-            
-            # 3. 嘗試為最缺人的班別分配 1 人
-            for shift_name, count in shift_status:
-                # 檢查是否已達該班別最大限制 (雖然我們移除了全域限制，但在平衡模式下，如果某班已明顯過多，可以跳過)
-                # 暫時不設上限，讓平衡機制自然運作
+            for s_name, timeline in all_shift_timelines.items():
+                if not self.shifts[s_name].get('time'): continue
+                if not can_add_shift(s_name): continue # CHECK LIMITS
+
+                score = 0
+                first_unmet = -1
+                for k in range(T_MAX):
+                    if timeline[k] and unmet[k]:
+                        score += 10
+                        if first_unmet == -1: first_unmet = k
                 
-                # 取得候選人
-                candidates = self._get_available_candidates(current_date, shift_name, [])
+                if score == 0: continue
                 
-                # 找到第一個可用的候選人
-                target_emp = None
-                for emp in candidates:
-                    if emp['name'] in assigned_people:
-                        continue
-                    
-                    is_ok, _ = self._is_available(emp, current_date, shift_name)
-                    if is_ok:
-                        target_emp = emp
-                        break
+                if first_unmet > 0 and timeline[first_unmet-1] == 0:
+                     score += 500 # Alignment Bonus
                 
-                if target_emp:
-                    # 分配 1 人
-                    self.schedule[date_str][shift_name].append(target_emp['name'])
-                    assigned_people.add(target_emp['name'])
-                    self._update_employee_history(target_emp['name'], date_str, shift_name)
-                    assigned_someone = True
-                    # 成功分配後，跳出迴圈重新評估各班人數 (Round Robin)
-                    break
+                if score > best_score:
+                    best_score = score
+                    best_s = s_name
             
-            # 如果嘗試了所有班別都沒人可分配，則結束階段2
-            if not assigned_someone:
+            if not best_s:
+                day_log.append("⚠️ 無法滿足覆蓋需求 (一般) - 可能因班別限制或無合適班次")
                 break
+            
+            skeleton.append((best_s, None))
+            tl = all_shift_timelines[best_s]
+            for i in range(T_MAX):
+                if tl[i]: current_general_coverage[i] += 1
+        
+        # 5. Assign People to Skeleton
+        assigned_peeps = set()
 
+        skeleton.sort(key=lambda x: 0 if x[1] else 1) 
+        
+        for shift_name, required_role in skeleton:
+            # Hard Safety Check (Should be handled by skeleton limiting, but safe to keep)
+            if enforce_daily_limit and len(assigned_peeps) >= max_daily_staff:
+                day_log.append(f"⚠️ (Assign) 已達最大人數 {max_daily_staff}，略過 {shift_name}")
+                continue
+
+            # Find Candidate
+            role_filter = [required_role] if required_role else []
+            candidates = self._get_available_candidates(current_date, shift_name, role_filter)
+            
+            # Enhanced Fairness Sorting: 
+            # 1. Total workload (fewer days worked = higher priority)
+            # 2. Shift diversity (penalize if person worked this shift type recently)
+            def fairness_score(c):
+                name = c['name']
+                total_days = len(self.history[name]['worked_days'])
                 
+                # Check shift diversity: count how many times this person worked THIS shift
+                shift_count = 0
+                for d_str in self.history[name]['worked_days']:
+                    if d_str in self.schedule:
+                        if name in self.schedule[d_str].get(shift_name, []):
+                            shift_count += 1
+                
+                # Penalty for shift repetition (encourage variety)
+                diversity_penalty = shift_count * 10
+                
+                return total_days + diversity_penalty
+            
+            candidates.sort(key=fairness_score)
+            
+            picked = None
+            for cand in candidates:
+                if cand['name'] not in assigned_peeps:
+                    is_ok, reason = self._is_available(cand, current_date, shift_name)
+                    if is_ok:
+                        if required_role and required_role not in cand.get('roles', []):
+                             continue
+                        picked = cand
+                        break
+            
+            if picked:
+                self.schedule[date_str][shift_name].append(picked['name'])
+                assigned_peeps.add(picked['name'])
+                self._update_employee_history(picked['name'], date_str, shift_name)
+                
+                if required_role:
+                    day_log.append(f"✓ {date_str} {shift_name} 指定 '{required_role}': {picked['name']}")
+            else:
+                role_msg = f"({required_role})" if required_role else ""
+                day_log.append(f"⚠️ 缺工警示: 無法找到人值班 {shift_name} {role_msg}")
 
-
-        
-        # 記錄當日總人數
-        day_log.append(f"📊 {date_str} 共分配 {len(assigned_people)} 人上班")
-        
+        day_log.append(f"📊 {date_str} 共分配 {len(assigned_peeps)} 人")
         return day_log
 
     def get_employee_status_snapshot(self, current_date):

@@ -6,3 +6,5 @@ INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 INFO:     127.0.0.1:51261 - "GET /simulate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51581 - "GET /simulate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50509 - "GET /simulate HTTP/1.1" 200 OK
