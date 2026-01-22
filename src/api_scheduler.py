@@ -302,6 +302,7 @@ def simulate_schedule():
             "year": year,
             "month": month,
             "schedule_flat": flat_list,
+            "schedule_matrix": matrix_list, # Fixed: Include matrix
             "logs": logs
         }
     except Exception as e:
