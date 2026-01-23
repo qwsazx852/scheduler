@@ -1,4 +1,5 @@
 {
     "max_staff_per_day": 10,
-    "enforce_limit": true
+    "enforce_limit": true,
+    "min_monthly_hours": 80
 }

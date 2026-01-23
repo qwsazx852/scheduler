@@ -26,7 +26,7 @@
     },
     "F": {
         "time": "10:00-17:00",
-        "required_people": 2,
+        "required_people": 1,
         "enforce_headcount": true
     },
     "B-": {
@@ -35,22 +35,27 @@
         "enforce_headcount": true
     },
     "B1": {
-        "time": "18:00-21:00",
-        "required_people": 2,
-        "enforce_headcount": true
-    },
-    "D1": {
-        "time": "10:00-17:00",
-        "required_people": 2,
-        "enforce_headcount": true
-    },
-    "B2": {
         "time": "14:00-21:35",
         "required_people": 2,
         "enforce_headcount": true
     },
+    "D1": {
+        "time": "6:20-14:00",
+        "required_people": 2,
+        "enforce_headcount": true
+    },
     "A2C": {
-        "time": "10:00-12:00,17:00-21:30",
+        "time": "7:00-10:00,16:50-21:35",
+        "required_people": 2,
+        "enforce_headcount": true
+    },
+    "B1\\": {
+        "time": "14:00-21:00",
+        "required_people": 2,
+        "enforce_headcount": true
+    },
+    "A": {
+        "time": "7:00-12:05",
         "required_people": 2,
         "enforce_headcount": true
     }

@@ -242,7 +242,8 @@ class SchedulerLogic:
             emp['name']: {
                 "worked_days": set(), 
                 "consecutive_days": 0,
-                "last_shift_end_minutes": None
+                "last_shift_end_minutes": None,
+                "total_hours": 0.0
             } 
             for emp in self.employees
         }
@@ -263,7 +264,8 @@ class SchedulerLogic:
                     name: {
                         "worked_days": set(hist["worked_days"]),
                         "consecutive_days": hist["consecutive_days"],
-                        "last_shift_end_minutes": hist["last_shift_end_minutes"]
+                        "last_shift_end_minutes": hist["last_shift_end_minutes"],
+                        "total_hours": hist.get("total_hours", 0.0)  # Add hour tracking
                     }
                     for name, hist in self.history.items()
                 }
@@ -338,6 +340,10 @@ class SchedulerLogic:
                 log.append("  3. 考慮放寬該日的人數限制")
                 log.append("")
         
+        # 生成詳細的規則驗證報告
+        validation_report = self._generate_validation_report()
+        log.extend(validation_report)
+        
         # 統計整體成功率
         total_days = len(self.dates)
         success_days = sum(1 for d in self.dates if d.strftime("%Y-%m-%d") in self.schedule and any(self.schedule[d.strftime("%Y-%m-%d")].values()))
@@ -351,6 +357,279 @@ class SchedulerLogic:
         log.insert(0, "")
         
         return self.schedule, log
+    
+    def _generate_validation_report(self):
+        """生成詳細的規則驗證報告"""
+        report = []
+        report.append("")
+        report.append("=" * 80)
+        report.append("📋 排班規則驗證報告 (Scheduling Rules Validation Report)")
+        report.append("=" * 80)
+        report.append("")
+        
+        # 1. 員工基礎設定檢查
+        report.append("### 1️⃣ 員工基礎設定 (Employee Constraints)")
+        report.append("")
+        
+        for emp in self.employees:
+            name = emp['name']
+            report.append(f"**{name}**:")
+            
+            # 可上班星期
+            weekdays_map = {0: "一", 1: "二", 2: "三", 3: "四", 4: "五", 5: "六", 6: "日"}
+            allowed_days = [weekdays_map[d] for d in emp.get('available_weekdays', [])]
+            report.append(f"  - 可上班星期: {', '.join(allowed_days) if allowed_days else '未設定'}")
+            
+            # 可上班班別
+            allowed_shifts = emp.get('allowed_shifts', [])
+            report.append(f"  - 可上班班別: {', '.join(allowed_shifts) if allowed_shifts else '未設定'}")
+            
+            # 角色
+            roles = emp.get('roles', [])
+            report.append(f"  - 角色: {', '.join(roles) if roles else '未設定'}")
+            
+            # 實際排班統計
+            worked_days = len(self.history[name]['worked_days'])
+            total_hours = self.history[name].get('total_hours', 0.0)
+            report.append(f"  - ✅ 實際排班天數: {worked_days} 天")
+            report.append(f"  - ⏱️ 累積總工時: {total_hours:.1f} 小時")
+            report.append("")
+        
+        # 2. 每月最低工時檢查
+        report.append("### 2️⃣ 每月最低工時檢查 (Monthly Minimum Hours)")
+        report.append("")
+        min_monthly_hours = self.daily_limits.get('min_monthly_hours', 0)
+        
+        if min_monthly_hours > 0:
+            report.append(f"  目標: 每人至少 {min_monthly_hours} 小時")
+            min_hours_violations = []
+            for emp in self.employees:
+                name = emp['name']
+                hours = self.history[name].get('total_hours', 0.0)
+                if hours < min_monthly_hours:
+                    min_hours_violations.append(f"  ❌ {name}: {hours:.1f} 小時 (差 {min_monthly_hours - hours:.1f} 小時)")
+                else:
+                    report.append(f"  ✅ {name}: {hours:.1f} 小時")
+            
+            if min_hours_violations:
+                report.extend(min_hours_violations)
+            else:
+                report.append("  ✅ 所有員工皆達成最低工時要求")
+        else:
+            report.append("  ℹ️ 未設定最低工時限制")
+        
+        report.append("")
+
+        # 3. 勞基法規則檢查
+        report.append("### 3️⃣ 勞基法規則 (Labor Law Compliance)")
+        report.append("")
+        
+        violations = []
+        for emp in self.employees:
+            name = emp['name']
+            
+            # 檢查連續工作天數
+            max_consecutive = 0
+            current_consecutive = 0
+            sorted_dates = sorted(self.history[name]['worked_days'])
+            
+            for i, date_str in enumerate(sorted_dates):
+                if i == 0:
+                    current_consecutive = 1
+                else:
+                    from datetime import datetime, timedelta
+                    prev_date = datetime.strptime(sorted_dates[i-1], "%Y-%m-%d")
+                    curr_date = datetime.strptime(date_str, "%Y-%m-%d")
+                    if (curr_date - prev_date).days == 1:
+                        current_consecutive += 1
+                    else:
+                        current_consecutive = 1
+                max_consecutive = max(max_consecutive, current_consecutive)
+            
+            if max_consecutive > 6:
+                violations.append(f"  ❌ {name}: 連續工作 {max_consecutive} 天 (超過6天上限)")
+            elif max_consecutive > 0:
+                report.append(f"  ✅ {name}: 最長連續工作 {max_consecutive} 天 (符合≤6天規定)")
+        
+        if violations:
+            report.extend(violations)
+        else:
+            report.append("  ✅ 所有員工連續工作天數符合規定")
+        
+        report.append("")
+        
+        # 晚接早（花花班）檢查
+        report.append("  **晚接早檢查 (Clopening Detection)**:")
+        clopening_cases = []
+        
+        for emp in self.employees:
+            name = emp['name']
+            sorted_dates = sorted(self.history[name]['worked_days'])
+            
+            for i in range(len(sorted_dates) - 1):
+                from datetime import datetime, timedelta
+                curr_date_str = sorted_dates[i]
+                next_date_str = sorted_dates[i + 1]
+                
+                curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d")
+                next_date = datetime.strptime(next_date_str, "%Y-%m-%d")
+                
+                # 檢查是否為連續兩天
+                if (next_date - curr_date).days == 1:
+                    # 獲取當天和隔天的班別
+                    curr_shifts = []
+                    next_shifts = []
+                    
+                    if curr_date_str in self.schedule:
+                        for shift_name, people in self.schedule[curr_date_str].items():
+                            if name in people:
+                                curr_shifts.append(shift_name)
+                    
+                    if next_date_str in self.schedule:
+                        for shift_name, people in self.schedule[next_date_str].items():
+                            if name in people:
+                                next_shifts.append(shift_name)
+                    
+                    # 檢查休息時間
+                    for curr_shift in curr_shifts:
+                        for next_shift in next_shifts:
+                            curr_shift_info = self.shifts.get(curr_shift, {})
+                            next_shift_info = self.shifts.get(next_shift, {})
+                            
+                            try:
+                                # 解析當天班別的結束時間
+                                curr_time = curr_shift_info.get('time', '')
+                                curr_segments = self._parse_shift_segments(curr_time)
+                                if curr_segments:
+                                    curr_end = max(seg[1] for seg in curr_segments)  # 取最晚結束時間
+                                else:
+                                    continue
+                                
+                                # 解析隔天班別的開始時間
+                                next_time = next_shift_info.get('time', '')
+                                next_segments = self._parse_shift_segments(next_time)
+                                if next_segments:
+                                    next_start = min(seg[0] for seg in next_segments)  # 取最早開始時間
+                                else:
+                                    continue
+                                
+                                # 計算休息時間（跨日）
+                                rest_hours = (24 * 60 - curr_end + next_start) / 60
+                                
+                                if rest_hours < 11:
+                                    clopening_cases.append(
+                                        f"    ⚠️ {name}: {curr_date_str} {curr_shift} → {next_date_str} {next_shift} "
+                                        f"(休息 {rest_hours:.1f} 小時)"
+                                    )
+                            except:
+                                pass
+        
+        if clopening_cases:
+            report.extend(clopening_cases)
+        else:
+            report.append("    ✅ 無晚接早情況（所有連續班次都有足夠休息時間）")
+        
+        report.append("")
+        report.append("  ✅ 休息時間檢查: 已在排班時強制執行11小時休息")
+        report.append("  ✅ 每日一班限制: 已在排班時強制執行")
+        report.append("")
+        
+        # 3. 時段覆蓋規則檢查
+        report.append("### 3️⃣ 時段覆蓋規則 (Coverage Rules)")
+        report.append("")
+        
+        if not self.coverage_rules:
+            report.append("  ℹ️ 未設定覆蓋規則")
+        else:
+            for idx, rule in enumerate(self.coverage_rules, 1):
+                time_range = rule.get('time_range', '')
+                min_people = rule.get('min_people', 0)
+                required_roles = rule.get('required_roles', [])
+                
+                report.append(f"**規則 {idx}: {time_range}**")
+                report.append(f"  - 最少人數: {min_people} 人")
+                if required_roles:
+                    report.append(f"  - 必要角色: {', '.join(required_roles)}")
+                
+                # 檢查每一天是否滿足
+                failed_dates = []
+                for date in self.dates:
+                    date_str = date.strftime("%Y-%m-%d")
+                    warnings = self._validate_coverage(date_str)
+                    
+                    # 檢查是否有此規則的違規
+                    for w in warnings:
+                        if time_range in w and "Coverage Warning" in w:
+                            failed_dates.append(date_str)
+                            break
+                
+                if failed_dates:
+                    report.append(f"  ❌ 未滿足日期: {', '.join(failed_dates[:5])}")
+                    if len(failed_dates) > 5:
+                        report.append(f"     ... 還有 {len(failed_dates) - 5} 天")
+                else:
+                    report.append(f"  ✅ 所有日期都滿足此規則")
+                report.append("")
+        
+        # 4. 營業時段覆蓋檢查
+        report.append("### 4️⃣ 營業時段覆蓋 (Business Hours Coverage)")
+        report.append("")
+        
+        if not self.business_hours.get("enforce_coverage", False):
+            report.append("  ℹ️ 未啟用營業時段覆蓋檢查")
+        else:
+            start = self.business_hours.get("start", "")
+            end = self.business_hours.get("end", "")
+            report.append(f"  營業時間: {start} - {end}")
+            
+            failed_dates = []
+            for date in self.dates:
+                date_str = date.strftime("%Y-%m-%d")
+                warnings = self._validate_business_hours_coverage(date_str)
+                if warnings:
+                    failed_dates.append(date_str)
+            
+            if failed_dates:
+                report.append(f"  ❌ 有空窗期的日期: {', '.join(failed_dates[:5])}")
+                if len(failed_dates) > 5:
+                    report.append(f"     ... 還有 {len(failed_dates) - 5} 天")
+            else:
+                report.append(f"  ✅ 所有日期營業時段都有完整覆蓋")
+        
+        report.append("")
+        
+        # 5. 每日人數限制檢查
+        report.append("### 5️⃣ 每日人數限制 (Daily Staff Limit)")
+        report.append("")
+        
+        max_staff = self.daily_limits.get('max_staff_per_day', 50)
+        enforce = self.daily_limits.get('enforce_limit', True)
+        
+        if not enforce:
+            report.append(f"  ℹ️ 未啟用每日人數限制")
+        else:
+            report.append(f"  上限: {max_staff} 人")
+            
+            exceeded_dates = []
+            for date in self.dates:
+                date_str = date.strftime("%Y-%m-%d")
+                if date_str in self.schedule:
+                    assigned = set()
+                    for shift_people in self.schedule[date_str].values():
+                        assigned.update(shift_people)
+                    if len(assigned) > max_staff:
+                        exceeded_dates.append(f"{date_str} ({len(assigned)}人)")
+            
+            if exceeded_dates:
+                report.append(f"  ❌ 超過上限的日期: {', '.join(exceeded_dates[:5])}")
+            else:
+                report.append(f"  ✅ 所有日期都符合人數限制")
+        
+        report.append("")
+        report.append("=" * 80)
+        report.append("")
+        
+        return report
     
     def _validate_coverage(self, date_str):
         """驗證特定日期的覆蓋規則是否有被滿足 (例如: 10點到14點要有3人)"""
@@ -781,6 +1060,26 @@ class SchedulerLogic:
         # 這樣可以避免組長被一般勤務消耗掉
         return perfect_matches + overqualified
 
+    def _calculate_shift_hours(self, shift_name):
+        """計算班別的總工時 (小時)"""
+        shift_info = self.shifts.get(shift_name)
+        if not shift_info: return 0.0
+        
+        time_str = shift_info.get("time", "")
+        # Use existing parsing logic if available or implement simplified version
+        try:
+            segments = self._parse_shift_segments(time_str)
+        except:
+            return 0.0
+            
+        total_minutes = 0
+        for start_min, end_min in segments:
+            duration = end_min - start_min
+            if duration < 0: duration += 24 * 60  # Cross midnight
+            total_minutes += duration
+            
+        return total_minutes / 60.0
+
 
     def _update_employee_history(self, emp_name, date_str, shift_name):
         """更新員工歷史紀錄"""
@@ -803,6 +1102,10 @@ class SchedulerLogic:
                 self.history[emp_name]['last_shift_end_minutes'] = segments[-1][1]
         except:
             pass
+
+        # 4. 更新累積工時
+        hours = self._calculate_shift_hours(shift_name)
+        self.history[emp_name]['total_hours'] = self.history[emp_name].get('total_hours', 0.0) + hours
 
     def get_schedule_dataframe(self):
         """將排班結果轉換為 Pandas DataFrame，方便顯示或匯出"""
@@ -1104,19 +1407,42 @@ class SchedulerLogic:
             # 2. Shift diversity (penalize if person worked this shift type recently)
             def fairness_score(c):
                 name = c['name']
-                total_days = len(self.history[name]['worked_days'])
+                history = self.history[name]
+                total_days = len(history['worked_days'])
                 
-                # Check shift diversity: count how many times this person worked THIS shift
+                # 1. Shift Diversity: Count times worked THIS shift
                 shift_count = 0
-                for d_str in self.history[name]['worked_days']:
+                for d_str in history['worked_days']:
                     if d_str in self.schedule:
                         if name in self.schedule[d_str].get(shift_name, []):
                             shift_count += 1
                 
-                # Penalty for shift repetition (encourage variety)
-                diversity_penalty = shift_count * 10
+                # 2. Consecutive Days Check (Up to yesterday)
+                consecutive = history['consecutive_days']
                 
-                return total_days + diversity_penalty
+                # 3. Monthly Minimum Hours Check
+                min_hours = self.daily_limits.get('min_monthly_hours', 0)
+                current_hours = history.get('total_hours', 0.0)
+                
+                hours_deficit_priority = 0
+                if min_hours > 0 and current_hours < min_hours:
+                    deficit = min_hours - current_hours
+                    # High negative score to prioritize (make it smaller than others)
+                    # Use deficit * 50 to strongly push them to front
+                    hours_deficit_priority = - (deficit * 50)
+
+                # Scoring Weights
+                # Total Workload: 10 per day
+                # Shift Repetition: 50 per count (High penalty to force supervisor rotation)
+                # Consecutive Fatigue: Quadratic penalty (Streak^2 * 20)
+                # Hours Deficit: -50 per missing hour (Strong Priority)
+                
+                score = (total_days * 10) + \
+                        (shift_count * 50) + \
+                        (consecutive ** 2 * 20) + \
+                        hours_deficit_priority
+                
+                return score
             
             candidates.sort(key=fairness_score)
             

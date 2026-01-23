@@ -94,25 +94,56 @@ try:
     
         # Add new shift
         with st.expander("➕ 新增班别"):
-            col1, col2, col3, col4 = st.columns([2, 3, 2, 2])
+            col1, col2 = st.columns([1, 2])
             with col1:
-                new_code = st.text_input("班别代码", key="new_shift_code", placeholder="例如: C")
+                new_code = st.text_input("班别代码", key="new_shift_code", placeholder="例如: A2C")
             with col2:
-                new_time = st.text_input("时间范围", key="new_shift_time", placeholder="例如: 10:00-14:00,17:00-21:00")
+                st.markdown("**時間範圍**")
+                
+                # Initialize segments for new shift
+                if 'new_shift_segments' not in st.session_state:
+                    st.session_state.new_shift_segments = ["00:00-00:00"]
+                
+                # Display segments
+                for idx, seg in enumerate(st.session_state.new_shift_segments):
+                    col_seg, col_del = st.columns([4, 1])
+                    with col_seg:
+                        new_seg = st.text_input(
+                            f"時段 {idx+1}",
+                            value=seg,
+                            key=f"new_seg_{idx}",
+                            placeholder="HH:MM-HH:MM",
+                            label_visibility="collapsed"
+                        )
+                        st.session_state.new_shift_segments[idx] = new_seg
+                    with col_del:
+                        if len(st.session_state.new_shift_segments) > 1:
+                            if st.button("🗑️", key=f"del_new_seg_{idx}", help="刪除此時段"):
+                                st.session_state.new_shift_segments.pop(idx)
+                                st.rerun()
+                
+                if st.button("➕ 新增時段", key="add_new_seg"):
+                    st.session_state.new_shift_segments.append("00:00-00:00")
+                    st.rerun()
+            
+            col3, col4 = st.columns(2)
             with col3:
                 new_enforce = st.checkbox("启用人数限制", value=True, key="new_shift_enforce")
             with col4:
                 new_people = st.number_input("需要人数", min_value=1, value=2, key="new_shift_people", disabled=not new_enforce)
         
             if st.button("新增", key="add_shift_btn"):
-                if new_code and new_time:
+                if new_code and st.session_state.new_shift_segments:
+                    new_time = ','.join(st.session_state.new_shift_segments)
                     st.session_state.shifts[new_code] = {
                         "time": new_time,
-                        "required_people": new_people,  # Always save the value
+                        "required_people": new_people,
                         "enforce_headcount": new_enforce
                     }
                     save_data(SHIFT_FILE, st.session_state.shifts)
                     st.success(f"已新增班别 {new_code}")
+                    # Reset segments
+                    st.session_state.new_shift_segments = ["00:00-00:00"]
                     st.rerun()
     
         # Edit existing shifts
@@ -125,12 +156,44 @@ try:
                     st.markdown(f"**{shift_code}**")
             
                 with col2:
-                    new_time = st.text_input(
-                        "时间范围", 
-                        value=shift_info["time"], 
-                        key=f"time_{shift_code}",
-                        label_visibility="collapsed"
-                    )
+                    # Parse existing time segments
+                    time_str = shift_info["time"]
+                    segments = [s.strip() for s in time_str.split(',')]
+                    
+                    st.markdown("**時間範圍**")
+                    
+                    # Initialize session state for segments if not exists
+                    seg_key = f"segments_{shift_code}"
+                    if seg_key not in st.session_state:
+                        st.session_state[seg_key] = segments
+                    
+                    # Display each segment with remove button
+                    updated_segments = []
+                    for idx, seg in enumerate(st.session_state[seg_key]):
+                        col_seg, col_del = st.columns([4, 1])
+                        with col_seg:
+                            new_seg = st.text_input(
+                                f"時段 {idx+1}",
+                                value=seg,
+                                key=f"seg_{shift_code}_{idx}",
+                                placeholder="HH:MM-HH:MM",
+                                label_visibility="collapsed"
+                            )
+                            updated_segments.append(new_seg)
+                        with col_del:
+                            if len(st.session_state[seg_key]) > 1:  # At least keep one
+                                if st.button("🗑️", key=f"del_seg_{shift_code}_{idx}", help="刪除此時段"):
+                                    st.session_state[seg_key].pop(idx)
+                                    st.rerun()
+                    
+                    # Add segment button
+                    if st.button("➕ 新增時段", key=f"add_seg_{shift_code}"):
+                        st.session_state[seg_key].append("00:00-00:00")
+                        st.rerun()
+                    
+                    # Update session state
+                    st.session_state[seg_key] = updated_segments
+                    new_time = ','.join(updated_segments)
             
                 with col3:
                     enforce = st.checkbox(
@@ -385,14 +448,25 @@ try:
                 disabled=not enforce_limit,
                 help="每天最多可以安排几个人上班"
             )
+            
+            st.divider()
+            
+            min_monthly_hours = st.number_input(
+                "每月最低工時 (hours)",
+                min_value=0,
+                max_value=300,
+                value=st.session_state.daily_limits.get("min_monthly_hours", 0),
+                help="每位員工每月至少要安排多少小時的班 (設為0則不限制)"
+            )
     
-        if st.button("储存每日人数限制 (Save Daily Limits)"):
+        if st.button("储存限制设定 (Save Limits)"):
             st.session_state.daily_limits = {
                 "max_staff_per_day": max_staff,
-                "enforce_limit": enforce_limit
+                "enforce_limit": enforce_limit,
+                "min_monthly_hours": min_monthly_hours  # Save new field
             }
             save_data("config/config_daily_limits.json", st.session_state.daily_limits)
-            st.success("每日人数限制已储存！")
+            st.success("限制设定已储存！")
     
         with st.expander("📖 使用说明"):
             st.markdown("""
@@ -662,11 +736,38 @@ try:
                 if 'last_gen_time' in st.session_state:
                     st.info(f"📅 排班生成時間: {st.session_state.last_gen_time}")
                 
-                # Display Logs (Warnings)
+                # Display Logs (Warnings and Validation Report)
                 if log:
-                    with st.expander("排班警示 (Warnings)", expanded=False):
-                        for l in log:
-                            st.warning(l)
+                    # Separate validation report from warnings
+                    validation_start = -1
+                    for i, line in enumerate(log):
+                        if "排班規則驗證報告" in line:
+                            validation_start = i
+                            break
+                    
+                    # Show warnings first
+                    if validation_start > 0:
+                        warnings = log[:validation_start]
+                        if warnings:
+                            with st.expander("⚠️ 排班警示 (Warnings)", expanded=False):
+                                for l in warnings:
+                                    if l.strip():  # Skip empty lines
+                                        st.warning(l)
+                    
+                    # Show validation report
+                    if validation_start >= 0:
+                        validation_report = log[validation_start:]
+                        with st.expander("📋 排班規則驗證報告 (Validation Report)", expanded=True):
+                            # Combine all lines into markdown
+                            report_text = "\n".join(validation_report)
+                            st.markdown(report_text)
+                    
+                    # If no validation report found, show all as warnings
+                    if validation_start == -1:
+                        with st.expander("排班警示 (Warnings)", expanded=False):
+                            for l in log:
+                                if l.strip():
+                                    st.warning(l)
                 else:
                     st.success("完美排班！没有违反规则。")
                 
@@ -710,9 +811,11 @@ try:
                             
                             st.altair_chart(c, use_container_width=True)
                             
-                            # Data Table
+                            # Data Table (avoid duplicate names by using drop_duplicates)
                             st.caption("詳細統計數據")
-                            st.dataframe(stats_df.set_index("Name").T)
+                            # Remove duplicates based on Name column before transposing
+                            unique_stats_df = stats_df.drop_duplicates(subset=['Name'], keep='first')
+                            st.dataframe(unique_stats_df.set_index("Name").T)
                         else:
                             st.info("無數據")
                     else:
@@ -815,7 +918,31 @@ try:
                         parts = time_str.split(',')
                         for part_idx, part in enumerate(parts):
                             try:
-                                start_str, end_str = part.strip().split('-')
+                                part = part.strip()
+                                if '-' not in part:
+                                    st.warning(f"⚠️ 班別 {shift_name} 時間格式錯誤: {part}")
+                                    continue
+                                    
+                                start_str, end_str = part.split('-', 1)
+                                start_str = start_str.strip()
+                                end_str = end_str.strip()
+                                
+                                # Validate time format (HH:MM)
+                                if ':' not in start_str or ':' not in end_str:
+                                    st.warning(f"⚠️ 班別 {shift_name} 時間格式錯誤: {part} (需要 HH:MM 格式)")
+                                    continue
+                                
+                                # Ensure zero-padding for time format
+                                def pad_time(time_str):
+                                    parts = time_str.split(':')
+                                    if len(parts) == 2:
+                                        h, m = parts
+                                        return f"{int(h):02d}:{int(m):02d}"
+                                    return time_str
+                                
+                                start_str = pad_time(start_str)
+                                end_str = pad_time(end_str)
+                                
                                 dummy_date = selected_date_str 
                                 
                                 for emp_name in emp_list:
@@ -831,24 +958,48 @@ try:
                                         "Shift": shift_display,
                                         "Start": f"{dummy_date}T{start_str}:00",
                                         "End": f"{dummy_date}T{end_str}:00",
-                                        "Color": shift_name 
+                                        "Color": shift_name,
+                                        "PersonShift": f"{display_name} - {shift_display}"  # Unique key for y-axis
                                     })
-                            except:
+                            except Exception as e:
+                                st.error(f"❌ 處理班別 {shift_name} 時段 '{part}' 時發生錯誤: {str(e)}")
                                 continue
                             
+                    # Debug: Show split shift parsing results
+                    st.write("### 🔍 分段解析結果")
+                    split_shift_summary = {}
+                    for item in gantt_data:
+                        shift = item['Shift']
+                        if shift not in split_shift_summary:
+                            split_shift_summary[shift] = []
+                        split_shift_summary[shift].append(f"{item['Person']}: {item['Start']} → {item['End']}")
+                    
+                    for shift, details in split_shift_summary.items():
+                        with st.expander(f"班別: {shift} ({len(details)} 筆)", expanded=True if '-' in shift else False):
+                            for d in details:
+                                st.text(d)
+                    
                     if gantt_data:
                         gantt_df = pd.DataFrame(gantt_data)
                         
-                        # Create Chart
+                        # Debug: Show raw data
+                        with st.expander("🔍 Debug: 甘特圖原始資料", expanded=False):
+                            st.write(f"總共 {len(gantt_data)} 筆資料")
+                            st.dataframe(gantt_df)
+                        
+                        # Create Chart - Use PersonShift for uniqueness but display Person name
+                        # Add row number to ensure uniqueness while keeping clean display
+                        gantt_df['DisplayName'] = gantt_df['Person'] + ' (' + gantt_df['Shift'] + ')'
+                        
                         c = alt.Chart(gantt_df).mark_bar().encode(
                             x=alt.X('Start:T', title='Time', axis=alt.Axis(format='%H:%M')),
                             x2='End:T',
-                            y=alt.Y('Person:N', title='Employee (Role)'),
+                            y=alt.Y('DisplayName:N', title='Employee (Shift)', sort=None),
                             color=alt.Color('Shift:N', legend=alt.Legend(title="Shift")),
                             tooltip=['Person', 'Role', 'Shift', 'Start', 'End']
                         ).properties(
                             title=f"{selected_date_str} Schedule",
-                            height=300 + (len(gantt_df['Person'].unique()) * 20) 
+                            height=max(400, len(gantt_df) * 30)  # Ensure enough height for all rows
                         ).interactive()
                         
                         st.altair_chart(c, use_container_width=True)

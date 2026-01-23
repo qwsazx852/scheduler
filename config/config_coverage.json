@@ -11,12 +11,13 @@
         "time_range": "7:00-12:00",
         "min_people": 3,
         "required_roles": [
-            "一般员工"
+            "一般员工",
+            "组长"
         ]
     },
     {
         "time_range": "12:00-18:00",
-        "min_people": 4,
+        "min_people": 3,
         "required_roles": [
             "组长",
             "一般员工"
