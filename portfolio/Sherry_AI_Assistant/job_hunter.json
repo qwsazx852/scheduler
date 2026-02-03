@@ -1,0 +1,335 @@
+{
+    "name": "Sherry Job Hunter (Fixed)",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "hours",
+                            "triggerAtHour": 10
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [
+                220,
+                340
+            ],
+            "id": "schedule-trigger",
+            "name": "Daily Job Search"
+        },
+        {
+            "parameters": {
+                "jsCode": "const resumeText = `國家科學委員會 | 研究助理\n國立勤益科技大學 |工業工程與管理系 碩士畢業\n屏東縣高樹鄉 | 1~2年工作經歷 | 希望職稱：演算法工程師\n具備演算法工程與最佳化背景，碩士論文專注於 多目標最佳化與決策模型設計，研究主題為「企業利潤最大化 × 碳足跡最小化」之權衡決策問題。\n碩士期間以 MATLAB 設計並實作 GA / PSO / NSGA-II / ACO 等啟發式演算法，包含 自訂 crossover（PPX） 、懲罰函數與多目標解集評估（Hypervolume）。熟悉將實務問題轉換為可計算之演算法流程，並進行系統性 Benchmark 與效能分析。\n具備 Python 實作能力，可將最佳化演算法轉寫為工程原型，並搭配 AI / Vibe Coding 工具進行快速驗證與輔助工具開發。\n擅長問題拆解、演算法邏輯設計與結果分析，目前全職投入演算法工程化與技術補強，持續將研究成果轉為可落地的系統原型，期望投入 演算法工程師／系統最佳化相關職務。\n\n學歷：\n國立勤益科技大學 工業工程與管理系 碩士 (2022/7~2024/7)\n國立勤益科技大學 工業工程與管理系 大學 (2018/9~2022/7)\n\n專長：\n演算法與最佳化 (GA, PSO, ACO, NSGA-II)\nMATLAB, Python, Flask, MySQL, GitHub\n應用領域：永續製造、生產排程、金融資料分析\n\n專案成就：\n1. Multi-objective Optimization for Sustainable Disassembly Planning (碩士論文): 建立雙目標最佳化模型，驗證減碳與利潤平衡。\n2. 股票即時看盤與通知系統 (Python): 金融資料擷取與 Telegram API 串接。\n3. Flask 記帳 App: 建立 API 原型與 CRUD 功能。\n4. 熱搜關鍵字分析工具: 數據分析與視覺化。`;\n\nreturn [{ json: { resume_text: resumeText } }];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                460,
+                340
+            ],
+            "id": "load-resume",
+            "name": "Load Resume (Embedded)"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://google.serper.dev/search",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "X-API-KEY",
+                            "value": "{{ $env.SERP_API_KEY }}"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "q",
+                            "value": "site:104.com.tw (\"演算法工程師\" OR \"Algorithm Engineer\") (\"台南\" OR \"台中\" OR \"高雄\") after:2026-01-30"
+                        },
+                        {
+                            "name": "gl",
+                            "value": "tw"
+                        },
+                        {
+                            "name": "hl",
+                            "value": "zh-tw"
+                        },
+                        {
+                            "name": "num",
+                            "value": "10"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                680,
+                340
+            ],
+            "id": "serper-search",
+            "name": "Search Jobs (104/Serper)"
+        },
+        {
+            "parameters": {
+                "fieldToSplitOut": "organic",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.itemLists",
+            "typeVersion": 3,
+            "position": [
+                900,
+                340
+            ],
+            "id": "split-results",
+            "name": "Split Search Results"
+        },
+        {
+            "parameters": {
+                "modelName": "models/gemini-1.5-flash",
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                1120,
+                600
+            ],
+            "id": "gemini-model",
+            "name": "Gemini Chat Model",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "AnZJMSp6dFblPj80",
+                    "name": "Google Gemini(PaLM) Api account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $json.snippet }} \n\nLink: {{ $json.link }}",
+                "options": {
+                    "systemMessage": "=You are a professional Tech Recruiter acting as a Matcher.\n\nTask:\nCompare the candidate's EXPERTISE (from Resume) with the JOB (from Snippet).\n\nCandidate Resume:\n{{ $('Load Resume (Embedded)').first().json.resume_text }}\n\nJob Snippet:\n[Analyze Input]\n\nOutput JSON ONLY:\n{\n  \"match_score\": (0-100),\n  \"reason\": \"Why it matches or not (1 sentence)\",\n  \"company\": \"Company Name if visible\",\n  \"job_title\": \"Job Title\"\n}"
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.7,
+            "position": [
+                1120,
+                340
+            ],
+            "id": "ai-matcher",
+            "name": "AI Matcher Agent"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Parse AI Output\ntry {\n  const aiOutput = JSON.parse(items[0].json.output.replace(/```json/g, '').replace(/```/g, '').trim());\n  return [{ json: { ...items[0].json, ...aiOutput } }];\n} catch (e) {\n  return [{ json: { match_score: 0, error: \"AI Parse Failed\" } }];\n}"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1340,
+                340
+            ],
+            "id": "parse-score",
+            "name": "Parse Score"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 3
+                    },
+                    "conditions": [
+                        {
+                            "id": "1",
+                            "leftValue": "={{ $json.match_score }}",
+                            "rightValue": 70,
+                            "operator": {
+                                "type": "number",
+                                "operation": "gte"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.3,
+            "position": [
+                1560,
+                340
+            ],
+            "id": "score-filter",
+            "name": "Score > 70?"
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=Job: {{ $json.job_title }} at {{ $json.company }}\nDesc: {{ $json.snippet }}\n\nResume Keywords to Highlight: {{ $('Load Resume (Embedded)').first().json.resume_text }}",
+                "options": {
+                    "systemMessage": "=You are an expert Resume Writer.\n\nTask:\nRewrite the candidate's \"Professional Summary\" (Start of resume) to specifically target this job.\nUse the exact keywords found in the Job Snippet.\n\nReference Resume:\n{{ $('Load Resume (Embedded)').first().json.resume_text }}\n\nOutput:\nA polite, professional Resume Summary paragraph (Traditional Chinese) optimized for this job."
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.7,
+            "position": [
+                1820,
+                240
+            ],
+            "id": "ai-tailor",
+            "name": "AI Tailor Agent"
+        },
+        {
+            "parameters": {
+                "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst jobTitle = items[0].json.job_title || 'Job';\nconst company = items[0].json.company || 'Company';\n// Clean filename\nconst safeName = `${company}_${jobTitle}`.replace(/[^a-z0-9]/gi, '_');\nconst fileName = `Tailored_Resume_${safeName}.txt`;\nconst filePath = `/home/node/n8n-static/resumes/${fileName}`; // Changed to standard n8n container path\n\nconst content = `\n[Target Job]: ${jobTitle} @ ${company}\n[Link]: ${items[0].json.link}\n[Match Score]: ${items[0].json.match_score}\n\n[Tailored Summary]:\n${items[0].json.output}\n\n---------------------------------\n[Original Resume Reference]:\n${$('Load Resume (Embedded)').first().json.resume_text}\n`;\n\n// Ensure directory exists\nif (!fs.existsSync(path.dirname(filePath))) {\n  try {\n    fs.mkdirSync(path.dirname(filePath), { recursive: true });\n  } catch (e) {\n     // Fallback to /tmp if permissions fail\n     // Not implemented here to keep it simple, but good to know\n  }\n}\n\nfs.writeFileSync(filePath, content);\n\nreturn [{\n  json: {\n    success: true,\n    fileName: fileName,\n    downloadUrl: `https://cletus-impactful-flushedly.ngrok-free.dev/static/resumes/${fileName}`\n  }\n}];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                2060,
+                240
+            ],
+            "id": "save-resume",
+            "name": "Save Tailored CV"
+        },
+        {
+            "parameters": {
+                "content": "Resume Content Embedded Here"
+            },
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                380,
+                240
+            ],
+            "id": "note-1",
+            "name": "Sticky Note"
+        }
+    ],
+    "connections": {
+        "Daily Job Search": {
+            "main": [
+                [
+                    {
+                        "node": "Load Resume (Embedded)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Load Resume (Embedded)": {
+            "main": [
+                [
+                    {
+                        "node": "Search Jobs (104/Serper)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Search Jobs (104/Serper)": {
+            "main": [
+                [
+                    {
+                        "node": "Split Search Results",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Split Search Results": {
+            "main": [
+                [
+                    {
+                        "node": "AI Matcher Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "AI Matcher Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    },
+                    {
+                        "node": "AI Tailor Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Matcher Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Score",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Score": {
+            "main": [
+                [
+                    {
+                        "node": "Score > 70?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Score > 70?": {
+            "main": [
+                [
+                    {
+                        "node": "AI Tailor Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Tailor Agent": {
+            "main": [
+                [
+                    {
+                        "node": "Save Tailored CV",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "timezone": "Asia/Taipei",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "errorWorkflow": null
+    }
+}

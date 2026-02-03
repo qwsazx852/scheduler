@@ -1,5 +1,60 @@
-__pycache__/
-*.pyc
+# System & Environment
 .DS_Store
+*.env
+*.log
+
+# N8N Credentials (EXTREMELY SENSITIVE)
+n8n_workflows/n8n_creds_decrypted.json
+n8n_creds_*.json
+
+# Workflows with Hardcoded Keys (Detected)
+Sherry_Job_Hunter_Final.json
+Sherry_Job_Hunter.json
+Sherry_Fixed.json
+Sherry_with_Kokoro.json
+n8n_line_agent_with_tts_v1.json
+n8n_line_agent_with_tts_v2.json
+n8n_workflows/n8n_line_agent_latest.json
+n8n_workflows/n8n_line_agent_backup_20260126.json
+n8n_workflows/n8n_line_agent_with_tts_v1.json
+
+# Scripts with Hardcoded Keys
+Sherry_RAG/scripts/check_models.py
+Sherry_RAG/scripts/ingest_pdf.py
+personal_scheduler/electron/main.js
+personal_scheduler/debug_models.js
+personal_scheduler/restored_asar/electron/main.js
+
+# Node Modules & Build Artifacts
+node_modules/
+dist/
 output/
+__pycache__/
+
+# Python Library Pollution (Root install artifacts)
+bin/
+cv2/
+docx/
+fire/
+fire-*.dist-info/
+fitz/
+fontTools/
+fonttools-*.dist-info/
 legacy/
+lxml/
+lxml-*.dist-info/
+numpy/
+numpy-*.dist-info/
+opencv_python_headless-*.dist-info/
+pdf2docx/
+pdf2docx-*.dist-info/
+pymupdf/
+pymupdf-*.dist-info/
+python_docx-*.dist-info/
+share/
+static/
+termcolor/
+termcolor-*.dist-info/
+typing_extensions.py
+typing_extensions-*.dist-info/
+*.pyc

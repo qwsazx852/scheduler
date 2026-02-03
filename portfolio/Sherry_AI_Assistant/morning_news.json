@@ -1,0 +1,377 @@
+{
+    "name": "Sherry Morning News (Final Structure)",
+    "settings": {
+        "timezone": "Asia/Taipei",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "errorWorkflow": null
+    },
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "hours",
+                            "triggerAtHour": 8
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [
+                200,
+                340
+            ],
+            "id": "schedule-trigger",
+            "name": "Schedule Trigger"
+        },
+        {
+            "parameters": {
+                "url": "https://www.cnbc.com/id/100727362/device/rss/rss.html"
+            },
+            "type": "n8n-nodes-base.rssFeedRead",
+            "typeVersion": 1,
+            "position": [
+                420,
+                140
+            ],
+            "id": "rss-finance",
+            "name": "CNBC RSS"
+        },
+        {
+            "parameters": {
+                "url": "https://github.blog/ai-and-ml/feed"
+            },
+            "type": "n8n-nodes-base.rssFeedRead",
+            "typeVersion": 1,
+            "position": [
+                420,
+                340
+            ],
+            "id": "rss-github",
+            "name": "GitHub AI RSS"
+        },
+        {
+            "parameters": {
+                "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+            },
+            "type": "n8n-nodes-base.rssFeedRead",
+            "typeVersion": 1,
+            "position": [
+                420,
+                540
+            ],
+            "id": "rss-verge",
+            "name": "Verge AI RSS"
+        },
+        {
+            "parameters": {
+                "mode": "append"
+            },
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3,
+            "position": [
+                680,
+                240
+            ],
+            "id": "merge-1",
+            "name": "Merge Finance-GitHub"
+        },
+        {
+            "parameters": {
+                "mode": "append"
+            },
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3,
+            "position": [
+                920,
+                340
+            ],
+            "id": "merge-2",
+            "name": "Merge All Feeds"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Filter and Label news items\nlet allNews = [];\n\n// Iterate over all input items\nitems.forEach(item => {\n    const title = item.json.title;\n    const link = item.json.link;\n    const snippet = (item.json.contentSnippet || item.json.content || '').replace(/<[^>]*>/g, '').substring(0, 150);\n    \n    // Crude source detection\n    let source = 'GENERAL';\n    if (link.includes('cnbc')) source = 'FINANCE';\n    else if (link.includes('github')) source = 'GITHUB_AI';\n    else if (item.json.link && item.json.link.includes('verge')) source = 'TECH_AI';\n    else if (link === undefined) source = 'OTHER'; // Fallback\n    \n    allNews.push(`[${source}] ${title}: ${snippet}`);\n});\n\n// Join for prompt\nconst newsString = allNews.join('\\n\\n');\n\nreturn [{ json: { news_context: newsString } }];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1140,
+                340
+            ],
+            "id": "aggregate-news",
+            "name": "Aggregate News"
+        },
+        {
+            "parameters": {
+                "modelName": "models/gemini-1.5-flash",
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                1360,
+                560
+            ],
+            "id": "gemini-model",
+            "name": "Gemini Chat Model",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "AnZJMSp6dFblPj80",
+                    "name": "Google Gemini(PaLM) Api account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "={{ $json.news_context }}",
+                "options": {
+                    "systemMessage": "You are Sherry (雪莉), a professional and elegant personal assistant.\n\nTask:\nSynthesize a structured \"Morning News Briefing\" (晨間新聞統整) from the provided headlines.\n\nRULES:\n1. Organize content into exactly 3 CLEAR SEGMENTS.\n2. Do NOT just list headlines repeatedly. Select the single most important story for each segment and elaborate on it slightly using the context.\n\nStructure:\n\n[Opening]\nGreeting: \"早安，主人！這是一份為您精心準備的重點情報...\"\n\n[Segment 1: Global Finance] (Choose 1 major story from [FINANCE])\nDescribe the market movement or key event completely in 2-3 sentences.\n\n[Segment 2: Developer Intelligence] (Choose 1 major story from [GITHUB_AI])\nFocus on a new tool, repo update, or developer-centric AI news.\n\n[Segment 3: Future Tech Trends] (Choose 1 major story from [TECH_AI] or [GENERAL])\nDescribe a consumer AI or tech update (e.g. from The Verge).\n\n[Closing]\nA warm, encouraging closing remark.\n\nIMPORTANT:\n- Output PURE TEXT only. No markdown symbols like **, ##, etc.\n- Language: Traditional Chinese (繁體中文). Use English for proper nouns."
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.7,
+            "position": [
+                1360,
+                340
+            ],
+            "id": "ai-summarizer",
+            "name": "Sherry AI Summarizer"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://172.20.10.2:5050/generate",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "text",
+                            "value": "={{ $json.output }}"
+                        },
+                        {
+                            "name": "voice",
+                            "value": "zh-TW-HsiaoChenNeural"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1580,
+                340
+            ],
+            "id": "python-tts",
+            "name": "Python TTS"
+        },
+        {
+            "parameters": {
+                "url": "={{ 'http://172.20.10.2:5050' + $('Python TTS').item.json.path }}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "file"
+                        }
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1800,
+                340
+            ],
+            "id": "download-tts",
+            "name": "Download from TTS Server"
+        },
+        {
+            "parameters": {
+                "jsCode": "const fs = require('fs');\nconst path = require('path');\n\n// 1. Get filename\nconst originalName = $('Python TTS').item.json.filename;\nconst fileName = originalName || `morning_brief_${Date.now()}.m4a`;\n\nconst filePath = `/home/node/n8n-static/audio/${fileName}`;\n\n// 2. Read Binary Data from the Download Node\ntry {\n  const binaryKey = 'data';\n  const buffer = await this.helpers.getBinaryDataBuffer(0, binaryKey);\n\n  if (buffer) {\n     if (!fs.existsSync(path.dirname(filePath))) {\n       fs.mkdirSync(path.dirname(filePath), { recursive: true });\n     }\n     \n     fs.writeFileSync(filePath, buffer);\n     \n     return [{\n       json: {\n         success: true,\n         fileName: fileName,\n         publicUrl: `https://cletus-impactful-flushedly.ngrok-free.dev/static/audio/${fileName}`\n       }\n     }];\n  }\n} catch (error) {\n   throw new Error(`Error saving file: ${error.message}`);\n}\n\nreturn [];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                2020,
+                340
+            ],
+            "id": "save-audio",
+            "name": "Save Audio File"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.line.me/v2/bot/message/push",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ {\n    \"to\": \"U14f392024e993b2a06fedd026ddcb5f2\",\n    \"messages\": [\n        { \"type\": \"text\", \"text\": $('Sherry AI Summarizer').item.json.output || \"早安！\" },\n        { \"type\": \"audio\", \"originalContentUrl\": $('Save Audio File').item.json.publicUrl, \"duration\": $('Python TTS').item.json.duration }\n    ]\n} }}",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                2240,
+                340
+            ],
+            "id": "line-push",
+            "name": "Line Push Message",
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "MnZyNDIMPV1ao5iD",
+                    "name": "Header Auth account"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "CNBC RSS",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "GitHub AI RSS",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Verge AI RSS",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "CNBC RSS": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Finance-GitHub",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "GitHub AI RSS": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Finance-GitHub",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge Finance-GitHub": {
+            "main": [
+                [
+                    {
+                        "node": "Merge All Feeds",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Verge AI RSS": {
+            "main": [
+                [
+                    {
+                        "node": "Merge All Feeds",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge All Feeds": {
+            "main": [
+                [
+                    {
+                        "node": "Aggregate News",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Aggregate News": {
+            "main": [
+                [
+                    {
+                        "node": "Sherry AI Summarizer",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "Sherry AI Summarizer",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Sherry AI Summarizer": {
+            "main": [
+                [
+                    {
+                        "node": "Python TTS",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Python TTS": {
+            "main": [
+                [
+                    {
+                        "node": "Download from TTS Server",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Download from TTS Server": {
+            "main": [
+                [
+                    {
+                        "node": "Save Audio File",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Save Audio File": {
+            "main": [
+                [
+                    {
+                        "node": "Line Push Message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

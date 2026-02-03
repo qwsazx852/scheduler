@@ -1,0 +1,148 @@
+{
+  "name": "Smart RFQ & APS Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b54d5c9d-cea4-4100-9816-eb848642a1d3",
+      "name": "Start Demo"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "customer",
+              "value": "TechCorp Inc."
+            },
+            {
+              "name": "product_id",
+              "value": "A-Parts-X"
+            },
+            {
+              "name": "quantity",
+              "value": "500"
+            },
+            {
+              "name": "requested_date",
+              "value": "2026-02-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        250,
+        0
+      ],
+      "id": "94d99f53-df3b-4831-b209-1639f53bf19d",
+      "name": "Mock Vision OCR (Input)"
+    },
+    {
+      "parameters": {
+        "command": "echo '{\"quantity\": ' + $json.quantity + ', \"requested_date\": \"' + $json.requested_date + '\"}' > /Users/jun/.gemini/antigravity/scratch/current_rfq.json && python3 /Users/jun/.gemini/antigravity/scratch/optimize_schedule.py /Users/jun/.gemini/antigravity/scratch/current_rfq.json"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        500,
+        0
+      ],
+      "id": "7717d209-9893-4fd4-b1d0-0cc2249762ff",
+      "name": "Run Optimization (Python Core)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the JSON output from Python\nconst output = JSON.parse($input.all()[0].json.stdout);\n\nreturn [\n  {\n    json: output\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        0
+      ],
+      "id": "6c7c38f4-dfb6-4675-a182-1044a6455784",
+      "name": "Parse Optimization Result"
+    },
+    {
+      "parameters": {
+        "replyToken": "={{ $json.replyToken }}",
+        "messages": {
+          "values": [
+            {
+              "type": "text",
+              "text": "=【APS 決策建議】\n策略: {{ $json.strategy }}\n建議交期: {{ $json.suggested_date }}\n預估成本: ${{ $json.cost_estimate }}\n\n分析: {{ $json.message }}"
+            }
+          ]
+        }
+      },
+      "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        0
+      ],
+      "id": "0827ea6a-4871-4d0e-8917-0403fae8d35a",
+      "name": "Notify Manager (Line)",
+      "credentials": {
+        "lineMessagingApi": {
+          "id": "GYiYsrq8Li6aoUxQ",
+          "name": "Line Messaging account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Start Demo": {
+      "main": [
+        [
+          {
+            "node": "Mock Vision OCR (Input)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Vision OCR (Input)": {
+      "main": [
+        [
+          {
+            "node": "Run Optimization (Python Core)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Optimization (Python Core)": {
+      "main": [
+        [
+          {
+            "node": "Parse Optimization Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Optimization Result": {
+      "main": [
+        [
+          {
+            "node": "Notify Manager (Line)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

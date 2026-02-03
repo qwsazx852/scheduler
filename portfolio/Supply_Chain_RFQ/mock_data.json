@@ -1,0 +1,8 @@
+{
+    "order_id": "PO-2026001",
+    "customer": "TechCorp Inc.",
+    "product_id": "A-Parts-X",
+    "quantity": 500,
+    "requested_date": "2026-02-28",
+    "priority": "normal"
+}

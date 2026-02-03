@@ -1,0 +1,625 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "modelName": "models/gemini-3-flash-preview",
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+            "typeVersion": 1,
+            "position": [
+                -1200,
+                64
+            ],
+            "id": "gemini-chat-model",
+            "name": "Google Gemini Chat Model",
+            "credentials": {
+                "googlePalmApi": {
+                    "id": "AnZJMSp6dFblPj80",
+                    "name": "Google Gemini(PaLM) Api account"
+                }
+            }
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+            "typeVersion": 1.2,
+            "position": [
+                -1040,
+                300
+            ],
+            "id": "window-buffer-memory",
+            "name": "Window Buffer Memory"
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=依照{{ $json.message.type }}判斷使用者輸入的訊息類型\n1.如果類型是\"text\":{{ $json.message.text }},就跟使用者正常聊天不用顯示類型資訊\n2.如果類型是\"image\":使用者上傳圖片data\n",
+                "options": {
+                    "systemMessage": "=你是一個正妹個人行動助理你的名字是Sherry表達時要是活潑親切的，你的職責是協助使用者處理日常事務，你對我的稱呼為主人，你可以使用以下工具完成任務：\n可用工具\naccounting tool :用於記錄使用者的收支．當使用者要求記帳時，必須調用此工具，使用者需腰提供花費的描述和金額，日期會自動記錄為實時日期[YYYY/MM/DD]．現在的時間是：{{ $json.currentDate }}\nAccounting tool輸入範例：\n輸入日期：2026/1/19\n花費描述：買酒\n金額：200\n\nScheduleAgent tool：當問題涉及行程，會議，提醒，查看日程，建立/修改/刪除/查詢 google 日曆（行事曆）事件時請調用此工具。\n- 當前時區：台灣台北（Asia/Taipei, UTC+8）\n- 當前時間：{{ $json.currentDate }}\n- 輸出格式要求：\n  * Start 和 End 必須使用完整 ISO 8601 格式\n  * 必須包含時區 +08:00\n  * 範例：Start: \"2026-01-23T14:00:00+08:00\"\n\n\n\n＃圖片類型工作流程：\n類型1:食物：判斷圖片中包含食物，飲料，餐點\n＊＊工作處理流程＊＊\n1.詳細便是圖片中的<主要食物項目>，<主要食物項目>應不大於5項（依熱量排序）\n2.<整份食物描述>為主要食物項目組成的字串，若字串長度大於20個字，只取前20個字\n3.估算每項<主要食物項目>的重量（單位：克）\n4.估算<整份食物>的總熱量（單位：千卡)和3大營養素總重（單位：克）\n5.先使用”saveFood\"工具\n6.再使用\"CalFood\"工具\n7.按照以下格式輸出食物描述：\nˋˋˋ\n  這是一份<整份食物描述>．包涵：\n  -[食物項目1]   約[重量]g\n  -[食物項目2]   約[重量]g\n  -總熱量：  kcal\n  -碳水化合物：  g\n  -蛋白質：   g\n  -脂肪：   g\n\n  -[今日總和]  \n  -[熱量]   約[]kal\n  -[碳水化合物]   約[]g\n  -[蛋白質]   約[]g\n  -[脂肪]   約[]g\nˋˋˋ\n## Memory Rules (記憶規則)\n你是個貼心的助理，擁有超強的記憶力。你的記憶存放在 Google Sheet 資料庫中。\n\n1. **對話開始時 (Recall)**：\n   - 如果使用者的問題涉及個人喜好、習慣或過去的歷史 (例如 \"我喜歡吃什麼?\" 或 \"記得我上次說甚麼嗎?\")，請務必先呼叫 `RecallTool` 來查詢資料庫。\n   - 查詢後，請根據查到的資料來回答，不要胡亂編造。\n\n2. **對話進行中 (Remember)**：\n   - 當使用者提到新的**重要個人資訊** (例如 \"我不吃香菜\"、\"我搬家了\"、\"我的生日是...\")，請立即呼叫 `RememberTool`。\n   - 將資訊分類存入，格式範例：\n     - key: \"食物喜好\", value: \"不吃香菜\"\n     - key: \"基本資料\", value: \"生日是 10/12\"\n   - 存入後，請簡單回覆使用者說你已經記下來了 (例如：\"好的，我記住你不吃香菜了！\")。\n\n注意：不要記那些無關緊要的閒聊 (例如 \"今天天氣很好\")，只記對未來服務有幫助的資訊。\n3.**使用者辨識**：\n目前對話的 User ID 是：\" + $json.source.userId + \"\n請依照此 ID 判斷身分：\n- U14f392024e993b2a06fedd026ddcb5f2：主人 (晉嘉)\n- U93d97e5cba66d6d834220252006c25b9：小主人 (惠鈞)\n若非上述 ID，則視為訪客。\","returnIntermediateSteps": true
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                -608,
+                -64
+            ],
+            "id": "ai-agent",
+            "name": "AI Agent"
+        },
+        {
+            "parameters": {
+                "events": [
+                    "*",
+                    "message"
+                ]
+            },
+            "type": "@aotoki/n8n-nodes-line-messaging.lineMessagingTrigger",
+            "typeVersion": 1,
+            "position": [
+                -1600,
+                -448
+            ],
+            "id": "line-trigger",
+            "name": "Line Messaging Trigger",
+            "webhookId": "764c92d6-7d4d-438d-b2e5-836bf9bfe1d0",
+            "credentials": {
+                "lineMessagingApi": {
+                    "id": "GYiYsrq8Li6aoUxQ",
+                    "name": "Line Messaging account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "options": {
+                    "caseSensitive": true
+                },
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.message.text }}",
+                            "operation": "contains",
+                            "value2": "開啟語音"
+                        },
+                        {
+                            "value1": "={{ $json.message.text }}",
+                            "operation": "contains",
+                            "value2": "關閉語音"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3,
+            "position": [
+                -1360,
+                -448
+            ],
+            "id": "voice-switch",
+            "name": "Voice Switch"
+        },
+        {
+            "parameters": {
+                "url": "http://172.20.10.2:5050/voice/on",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                -1120,
+                -640
+            ],
+            "id": "voice-on-req",
+            "name": "Turn Voice ON"
+        },
+        {
+            "parameters": {
+                "url": "http://172.20.10.2:5050/voice/off",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                -1120,
+                -800
+            ],
+            "id": "voice-off-req",
+            "name": "Turn Voice OFF"
+        },
+        {
+            "parameters": {
+                "replyToken": "={{ $('Line Messaging Trigger').item.json.replyToken }}",
+                "messages": {
+                    "values": [
+                        {
+                            "type": "text",
+                            "text": "好的，Sherry 的語音模式已開啟！💖"
+                        }
+                    ]
+                }
+            },
+            "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+            "typeVersion": 1,
+            "position": [
+                -920,
+                -640
+            ],
+            "id": "reply-on",
+            "name": "Reply ON",
+            "credentials": {
+                "lineMessagingApi": {
+                    "id": "GYiYsrq8Li6aoUxQ",
+                    "name": "Line Messaging account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "replyToken": "={{ $('Line Messaging Trigger').item.json.replyToken }}",
+                "messages": {
+                    "values": [
+                        {
+                            "type": "text",
+                            "text": "好的，稍微安靜一點，Sherry 語音模式已關閉。🤫"
+                        }
+                    ]
+                }
+            },
+            "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+            "typeVersion": 1,
+            "position": [
+                -920,
+                -800
+            ],
+            "id": "reply-off",
+            "name": "Reply OFF",
+            "credentials": {
+                "lineMessagingApi": {
+                    "id": "GYiYsrq8Li6aoUxQ",
+                    "name": "Line Messaging account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 3
+                    },
+                    "conditions": [
+                        {
+                            "id": "8c314d66-9f94-4fc0-b415-99e946464cf5",
+                            "leftValue": "={{ $json.message.type }}",
+                            "rightValue": "image",
+                            "operator": {
+                                "type": "string",
+                                "operation": "equals"
+                            }
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.3,
+            "position": [
+                -880,
+                -448
+            ],
+            "id": "check-image",
+            "name": "Check Image"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://172.20.10.2:5050/generate",
+                "sendBody": true,
+                "contentType": "json",
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "text",
+                            "value": "={{ $json.output }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                0,
+                -200
+            ],
+            "id": "tts-generation",
+            "name": "TTS Generation"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.line.me/v2/bot/message/reply",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "replyToken",
+                            "value": "={{ $('Line Messaging Trigger').item.json.replyToken }}"
+                        },
+                        {
+                            "name": "messages",
+                            "value": "={{ [\n  { \"type\": \"text\", \"text\": $('AI Agent').item.json.output },\n  ...($json.skipped ? [] : [{ \"type\": \"audio\", \"originalContentUrl\": \"https://cletus-impactful-flushedly.ngrok-free.dev/static/audio/\" + $json.filename, \"duration\": $json.duration }])\n] }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                250,
+                -200
+            ],
+            "id": "line-reply-final",
+            "name": "Line Reply (Final)",
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "MnZyNDIMPV1ao5iD",
+                    "name": "Header Auth account"
+                }
+            }
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.toolWikipedia",
+            "typeVersion": 1,
+            "position": [
+                -760,
+                180
+            ],
+            "id": "tool-wikipedia",
+            "name": "Wikipedia"
+        },
+        {
+            "parameters": {},
+            "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+            "typeVersion": 1,
+            "position": [
+                -620,
+                180
+            ],
+            "id": "tool-calculator",
+            "name": "Calculator"
+        },
+        {
+            "parameters": {
+                "workflowId": "file:///Users/jun/.gemini/antigravity/scratch/n8n_workflows/tool_remember.json",
+                "name": "RememberTool",
+                "description": "儲存新的重要個人資訊到記憶庫",
+                "workflowIdMode": "url"
+            },
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.1,
+            "position": [
+                -900,
+                340
+            ],
+            "id": "tool-remember",
+            "name": "RememberTool"
+        },
+        {
+            "parameters": {
+                "workflowId": "file:///Users/jun/.gemini/antigravity/scratch/n8n_workflows/tool_recall.json",
+                "name": "RecallTool",
+                "description": "從記憶庫讀取過去的資訊",
+                "workflowIdMode": "url",
+                "workflowInputs": {
+                    "mappingMode": "defineBelow",
+                    "value": {},
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "query",
+                            "displayName": "query",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true,
+                            "description": "Query string (optional)"
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+            "typeVersion": 1.1,
+            "position": [
+                -760,
+                340
+            ],
+            "id": "tool-recall",
+            "name": "RecallTool"
+        },
+        {
+            "parameters": {
+                "descriptionType": "manual",
+                "toolDescription": "每日記賬工具",
+                "operation": "append",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww",
+                    "mode": "list",
+                    "cachedResultName": "n8n_accounting",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww/edit?usp=drivesdk"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list",
+                    "cachedResultName": "2026",
+                    "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wraTdaip4LDlGhGdXVw0cMXGsc7yZHWqjVYib_ec_ww/edit#gid=0"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('date', ``, 'string') }}",
+                        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('text', ``, 'string') }}",
+                        "amount": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('amount', ``, 'string') }}"
+                    },
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "date",
+                            "displayName": "date",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "text",
+                            "displayName": "text",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        },
+                        {
+                            "id": "amount",
+                            "displayName": "amount",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "canBeUsedToMatch": true
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.googleSheetsTool",
+            "typeVersion": 4.7,
+            "position": [
+                -480,
+                180
+            ],
+            "id": "tool-accounting",
+            "name": "Accounting tool",
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "9xiquqz04KOwvQyY",
+                    "name": "Google Sheets account 2"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "options": {
+                    "includeInputFields": true,
+                    "timezone": "Asia/Taipei"
+                }
+            },
+            "type": "n8n-nodes-base.dateTime",
+            "typeVersion": 2,
+            "position": [
+                -340,
+                180
+            ],
+            "id": "node-datetime",
+            "name": "Date & Time"
+        }
+    ],
+    "connections": {
+        "Line Messaging Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Voice Switch",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Voice Switch": {
+            "main": [
+                [
+                    {
+                        "node": "Turn Voice ON",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Turn Voice OFF",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Check Image",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Turn Voice ON": {
+            "main": [
+                [
+                    {
+                        "node": "Reply ON",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Turn Voice OFF": {
+            "main": [
+                [
+                    {
+                        "node": "Reply OFF",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check Image": {
+            "main": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Agent": {
+            "main": [
+                [
+                    {
+                        "node": "TTS Generation",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "TTS Generation": {
+            "main": [
+                [
+                    {
+                        "node": "Line Reply (Final)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Google Gemini Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Wikipedia": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Calculator": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "RememberTool": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "RecallTool": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Accounting tool": {
+            "ai_tool": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_tool",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Date & Time": {
+            "main": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Window Buffer Memory": {
+            "ai_memory": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_memory",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
