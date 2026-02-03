@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "command": "echo '{\"quantity\": ' + $json.quantity + ', \"requested_date\": \"' + $json.requested_date + '\"}' > /Users/jun/.gemini/antigravity/scratch/current_rfq.json && python3 /Users/jun/.gemini/antigravity/scratch/optimize_schedule.py /Users/jun/.gemini/antigravity/scratch/current_rfq.json"
+        "command": "echo '{\"quantity\": ' + $json.quantity + ', \"requested_date\": \"' + $json.requested_date + '\"}' > current_rfq.json && python3 optimize_schedule.py current_rfq.json"
       },
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,

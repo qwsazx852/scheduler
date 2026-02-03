@@ -1,0 +1,88 @@
+{
+    "nodes": [
+        {
+            "parameters": {},
+            "type": "n8n-nodes-base.executeWorkflowTrigger",
+            "typeVersion": 1,
+            "position": [
+                384,
+                240
+            ],
+            "id": "trigger_node",
+            "name": "When Executed by Another Workflow"
+        },
+        {
+            "parameters": {
+                "operation": "getMany",
+                "documentId": {
+                    "__rl": true,
+                    "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+                    "mode": "list"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "gid=0",
+                    "mode": "list"
+                },
+                "options": {}
+            },
+            "name": "Read All Memories",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4,
+            "position": [
+                600,
+                240
+            ],
+            "id": "read_sheet_node"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Convert the rows specific text format for AI\nconst memories = items.map(item => item.json);\n\nif (memories.length === 0) {\n  return [{ json: { text: \"No memories found.\" } }];\n}\n\nlet text = \"Here is what I remember about the user:\\n\";\nmemories.forEach(m => {\n  text += `- [${m.date}] ${m.key}: ${m.value}\\n`;\n});\n\nreturn [{ json: { text: text } }];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                800,
+                240
+            ],
+            "id": "format_memory_node",
+            "name": "Format as Text"
+        },
+        {
+            "parameters": {
+                "content": "## Recall Tool\nThis workflow reads all rows from Memory Sheet and formats them as a text summary for the AI."
+            },
+            "type": "n8n-nodes-base.stickyNote",
+            "typeVersion": 1,
+            "position": [
+                380,
+                140
+            ],
+            "id": "note_recall"
+        }
+    ],
+    "connections": {
+        "When Executed by Another Workflow": {
+            "main": [
+                [
+                    {
+                        "node": "Read All Memories",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Read All Memories": {
+            "main": [
+                [
+                    {
+                        "node": "Format as Text",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

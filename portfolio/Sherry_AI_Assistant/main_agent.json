@@ -299,7 +299,7 @@
         },
         {
             "parameters": {
-                "workflowId": "file:///Users/jun/.gemini/antigravity/scratch/n8n_workflows/tool_remember.json",
+                "workflowId": "file://portfolio/Sherry_AI_Assistant/tools/tool_remember.json",
                 "name": "RememberTool",
                 "description": "儲存新的重要個人資訊到記憶庫",
                 "workflowIdMode": "url"
@@ -315,7 +315,7 @@
         },
         {
             "parameters": {
-                "workflowId": "file:///Users/jun/.gemini/antigravity/scratch/n8n_workflows/tool_recall.json",
+                "workflowId": "file://portfolio/Sherry_AI_Assistant/tools/tool_recall.json",
                 "name": "RecallTool",
                 "description": "從記憶庫讀取過去的資訊",
                 "workflowIdMode": "url",
