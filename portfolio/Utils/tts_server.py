@@ -73,6 +73,9 @@ def generate_audio():
     try:
         asyncio.run(generate_audio_file(text, voice, filepath))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"CRITICAL ERROR generating audio: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
     # 取得公開網址 (需要 ngrok 若是在本地測試)

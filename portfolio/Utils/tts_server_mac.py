@@ -90,5 +90,5 @@ def index():
     return "TTS Server (Mac Native) is running."
 
 if __name__ == '__main__':
-    print("Starting Mac Native TTS Server on port 5002...")
-    app.run(host='0.0.0.0', port=5002)
+    print("Starting Mac Native TTS Server on port 5050...")
+    app.run(host='0.0.0.0', port=5050)

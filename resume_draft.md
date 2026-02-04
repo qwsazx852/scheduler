@@ -16,6 +16,7 @@
 
 ### ⚙️ 自動化與系統集成
 *   **內容管線**: RSS -> AI 摘要 -> 自建 Python TTS Server -> LINE 多模態推播
+*   **基礎設施 (DevOps)**: **Docker 自架 (Self-hosted n8n)**, **ngrok** (本地服務穿透與 Webhook 測試), 容器化部署管理
 *   **逆向工程**: 分析非公開 API (如人力銀行數據) 實現高效數據採集
 *   **API 串接**: Notion API, LINE Messaging API, Google Workspace
 
